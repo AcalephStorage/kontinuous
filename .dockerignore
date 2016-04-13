@@ -1,0 +1,7 @@
+/build
+/Dockerfile
+/.pipeline.yml
+/.gitignore
+/kubernetes.yml
+/README.md
+/dockerfiles

@@ -1,0 +1,37 @@
+---
+apiVersion: v1alpha1
+kind: Pipeline
+metadata:
+  name: kontinuous
+  namespace: acaleph
+spec:
+  selector:
+    matchLabels:
+      app: kontinuous
+      type: ci-cd
+  template:
+    metadata:
+      name: kontinuous
+      labels:
+        app: kontinuous
+        type: ci-cd
+    stages:
+      - name: Build Docker Image
+        type: docker_build
+      - name: Unit Test
+        type: command
+        params:
+            command:
+                - make
+                - test
+      - name: Publish to Quay
+        type: docker_publish
+        params:
+          external_registry: quay.io
+          external_image_name: acaleph/kontinuous
+          require_credentials: "TRUE"
+          username: user
+          password: password
+          email: email
+        secrets:
+          - docker-credentials
