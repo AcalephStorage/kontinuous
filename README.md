@@ -1,4 +1,5 @@
-KONTINUOUS
+![Kontinuous](docs/logo/logo.svg)
+
 Kontinuous
 ==========
 
