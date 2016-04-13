@@ -1,4 +1,4 @@
-![Kontinuous](docs/logo/logo.svg)
+![Kontinuous](docs/logo/logo-small.png)
 
 Kontinuous
 ==========
