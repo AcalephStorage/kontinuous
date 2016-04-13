@@ -1,4 +1,5 @@
 KONTINUOUS
+Kontinuous
 ==========
 
 Kontinuous is a Continuous Integration & Delivery pipeline tool built specifically for Kubernetes. It aims to provide a platform for building applications using native Kubernetes Jobs and Pods. 
@@ -25,7 +26,7 @@ Running kontinuous requires the following to be setup:
 
 Kontinuous is meant to run inside a kubernetes cluster, preferrably by a Replication Controller.
 
-The docker image can be found here: [quay.io/acaleph/kontinuous](quay.io/acaleph/kontinuous)
+The docker image can be found here: [quay.io/acaleph/kontinuous](https://quay.io/acaleph/kontinuous)
 
 The following environment variables needs to be defined:
 
@@ -210,15 +211,17 @@ HMACSHA256(
 
 Once a token is generated, this can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
 
+Alternatively the CLI Client can manage the token generation
+
 ## API
 
-kontinuous is accessible from it's API. The API can be available via swagger.
+kontinuous is accessible from it's API. The API docs can be viewed via Swagger.
 
 The API doc can be accessed via `{kontinuous-address}/apidocs`
 
 ## Clients
 
-At the moment, there is only a cli client (here)[https://github.com/AcalephStorage/kontinuous/tree/develop/cli].
+At the moment, there is a basic cli client [here](https://github.com/AcalephStorage/kontinuous/tree/develop/cli). A Web based Dashboard is under development.
 
 ## Development
 
