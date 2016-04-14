@@ -15,12 +15,6 @@ spec:
       labels:
         app: kontinuous
         type: ci-cd
-    notif: 
-      - type: "slack"
-        metadata:
-          url: "https://hooks.slack.com/services/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"
-          channel: "#development"
-          username: "kontinuous"
     stages:
       - name: Build Docker Image
         type: docker_build
