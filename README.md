@@ -20,7 +20,7 @@ Kontinuous currently offers the following features:
  - Slack notifications
  - A CLI tool for querying pipelines, build status and logs
 
-We've got lots more planned, see the [Roadmap](#Roadmap) or Github issues to get in on the action!
+We've got lots more planned, see the [Roadmap](#roadmap) or Github issues to get in on the action!
 
 ## Running Kontinuous
 
