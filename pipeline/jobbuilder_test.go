@@ -23,6 +23,13 @@ spec:
       name: awesome-webapp
       labels:
         app: awesome-webapp
+    notif:
+      - type: slack
+        secret: notifcredential
+        metadata: 
+          url: slackurl
+          password: slackpassword
+          email: slackemail    
     stages:
       - name: Build Image
         type: docker_build
