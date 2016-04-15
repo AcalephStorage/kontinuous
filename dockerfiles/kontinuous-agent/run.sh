@@ -166,7 +166,7 @@ prepare_mc() {
 	mc config host add internal-storage "${S3_URL}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
 	mc mb internal-storage/kontinuous || true
 	mkdir -pv /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/logs
-	mkdir -pv /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/artifacts
+	mkdir -pv /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts
 }
 
 store_logs() {
@@ -185,6 +185,19 @@ store_logs() {
 
 store_artifacts() {
 	echo "storing artifacts..."
+	# get associated pod
+	local pod_name=$(kubectl get pods --namespace=${NAMESPACE} --selector="pipeline=${PIPELINE_ID},build=${BUILD_ID},stage=${STAGE_ID}" --no-headers | awk '{print $1}')
+	local artifacts=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{.metadata.annotations.kontinuous_artifacts}}")
+	if [[ "$artifacts" != "<no value>" ]]; then
+		local container_count=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{len .spec.containers}}")
+		for (( i=0; i<${container_count}; i++ )); do
+			local container_name=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{(index .spec.containers ${i}).name}}")
+			if [[ "$container_name" =~ ^(command|docker)-agent$ ]]; then
+				kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp $artifacts /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
+			fi`
+		done
+	fi
+	mc mirror --quiet --force /kontinuous/status/${PIPELINE_ID}/${STAGE_ID}/mc/ internal-storage/kontinuous
 }
 
 pass() {

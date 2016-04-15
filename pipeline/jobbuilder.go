@@ -69,6 +69,10 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 
 	stage := getCurrentStage(definitions, jobInfo)
 
+	if len(stage.Artifacts) != 0 {
+		artifacts := getArtifacts(stage)
+		j.AddAnnotations("kontinuous_artifacts", artifacts)
+	}
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
@@ -226,6 +230,10 @@ func getSecrets(stage *Stage, namespace string) map[string]string {
 		}
 	}
 	return secrets
+}
+
+func getArtifacts(stage *Stage) string {
+	return fmt.Sprintf("{%s}", strings.Join(stage.Artifacts, ","))
 }
 
 func createJobContainer(name string, image string) *kube.Container {
