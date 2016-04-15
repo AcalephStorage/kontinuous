@@ -52,6 +52,7 @@ type Stage struct {
 	PodName     string                 `json:"pod_name,omitempty"`
 	DockerImage string                 `json:"docker_image,omitempty"`
 	Secrets     []string               `json:"secrets,omitempty"`
+	Artifacts   []string               `json:"artifacts,omitempty"`
 }
 
 func getStage(path string, kvClient kv.KVClient) *Stage {
