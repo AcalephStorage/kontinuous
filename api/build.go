@@ -122,6 +122,9 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		return
 	}
 
+	//save notif details in pipeline
+	pipeline.SaveNotifiers(definition, b.KVClient)
+
 	// save stage details
 	build.Stages = definition.GetStages()
 	if err := build.CreateStages(b.KVClient); err != nil {

@@ -73,7 +73,7 @@ type Pipeline struct {
 	Keys      Key         `json:"-"`
 	Login     string      `json:"login"`
 	Source    string      `json:"-"`
-	Notifiers []*Notifier `json:"notif"`
+	Notifiers []*Notifier `json:"notif,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -460,4 +460,12 @@ func (p *Pipeline) generateKeys() error {
 	}
 
 	return nil
+}
+
+func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
+	p.Notifiers = definition.Spec.Template.Notifiers
+	if p.Notifiers != nil {
+		p.Save(kvClient)
+	}
+
 }
