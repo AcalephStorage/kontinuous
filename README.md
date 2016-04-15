@@ -48,6 +48,16 @@ Running kontinuous requires the following to be setup:
 
 	Kontinuous uses Kubernetes Jobs heavily so will require at least version 1.1 with Jobs enabled
 
+### Quick Install
+
+The script `scripts/kontinuous-deploy` is a fast way of running `kontinuous` in a K8s cluster. The general syntax is:
+
+```
+$ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded secret} --s3-access-key {s3 access key} --s3-secret-key {s3 secret key}
+```
+
+This will run `kontinuous` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports LoadBalancer type of service.
+
 
 ### Running in Kubernetes
 
@@ -220,44 +230,15 @@ Make sure to enable access to the following:
 
 #### JSON Web Token
 
-Kontinuous uses JWT for authentication. To create a token, the `AuthSecret` (from kontinuous-secret) and the github token is required. One way of generating the token is using [jwt.io](https://jwt.io).
-
-The header should be:
+The script `scripts/jwt-gen` can generate a JSON Web Token to be used for authentication with Kontinuous. 
 
 ```
-{
-  "alg": "HS256",
-  "typ": "JWT"
-}
-```
+$ scripts/jwt-gen --secret {base64url encoded secret} --github-token {github-token}
+``` 
 
-Payload:
+This generates a JSON Web Token adn can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
 
-```
-{
-  "identities": [
-    {
-      "access_token": "github token"
-    }
-  ]
-}
-```
-
-and Signature:
-
-```
-HMACSHA256(
-  base64UrlEncode(header) + "." +
-  base64UrlEncode(payload),  
-  AuthSecret
-)
-
-[x]secret base64 encoded
-```
-
-Once a token is generated, this can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
-
-Alternatively the CLI Client can manage the token generation
+The generated token's validity can be veryfied at [jwt.io](https://jwt.io).
 
 ## API
 

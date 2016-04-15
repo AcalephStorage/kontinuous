@@ -1,0 +1,56 @@
+d -r -d '' HELP_MESSAGE << \
+'-----HELP-----'
+-------
+jwt-get
+-------
+
+Syntax:
+  jwt-get --help
+  jwt-get --secret secret --github-token token
+
+Options:
+  --help              show this help message
+  
+  --secret            base64 encoded secret
+  --github-token      github token, should have repo, admin:repo_hook, and user permissions
+-----HELP-----
+
+
+function show_help() {
+  echo
+  echo "$HELP_MESSAGE"
+  echo 
+  exit $1
+}
+
+function main() {
+  while [[ $# > 1 ]]; do
+    key="$1"
+    case $key in
+      --secret)
+        local secret="$2"
+        shift
+        ;;
+      --github-token)
+        local github_token="$2"
+        shift
+        ;;
+      --help)
+        show_help 0
+        ;;
+      *)
+        show_help 1
+        ;;
+    esac
+    shift
+  done
+
+  local header=$(echo -n '{"alg":"HS256","typ":"JWT"}' | openssl base64 | tr -d '\n')
+  local claims=$(echo -n "{\"identities\":[{\"access_token\": \"$github_token\"}]}" | openssl base64 | tr -d '\n')
+  local msg=$(echo -n "$header.$claims")
+  local signature=$(echo -n $msg | openssl dgst -sha256 -hmac "$(echo -n $secret | base64 -d)" -binary | openssl base64 | tr -d '\n')
+
+  echo "$msg.$signature"
+}
+
+main $@
