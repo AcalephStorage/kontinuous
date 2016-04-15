@@ -308,7 +308,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 			notifpath := fmt.Sprintf("%s/%s", notifTypePath, key)
 			notifValue := value.(string)
 			if hasSecret && secrets != nil {
-				notifValue = secrets[notifValue]
+				notifValue = strings.TrimSpace(secrets[notifValue])
 			}
 			if err = kvClient.Put(notifpath, notifValue); err != nil {
 				return handleSaveError(notifpath, isNew, err, kvClient)
