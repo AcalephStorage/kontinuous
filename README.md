@@ -26,7 +26,15 @@ We've got lots more planned, see the [Roadmap](#roadmap) or Github issues to get
 
 ### Getting Started
 
-A sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See below for how to configure secrets.
+The script `scripts/kontinuous-deploy` is a quick way of running `kontinuous` in a K8s cluster. The general syntax is:
+
+```
+$ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded secret} --s3-access-key {s3 access key} --s3-secret-key {s3 secret key}
+```
+
+This will launch `kontinuous` via the locally configured `kubectl` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports the LoadBalancer service.
+
+Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See below for how to configure secrets.
 
 ### Dependencies
 
@@ -47,16 +55,6 @@ Running kontinuous requires the following to be setup:
 - **kubernetes**
 
 	Kontinuous uses Kubernetes Jobs heavily so will require at least version 1.1 with Jobs enabled
-
-### Quick Install
-
-The script `scripts/kontinuous-deploy` is a fast way of running `kontinuous` in a K8s cluster. The general syntax is:
-
-```
-$ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded secret} --s3-access-key {s3 access key} --s3-secret-key {s3 secret key}
-```
-
-This will run `kontinuous` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports LoadBalancer type of service.
 
 
 ### Running in Kubernetes
@@ -236,13 +234,13 @@ The script `scripts/jwt-gen` can generate a JSON Web Token to be used for authen
 $ scripts/jwt-gen --secret {base64url encoded secret} --github-token {github-token}
 ``` 
 
-This generates a JSON Web Token adn can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
+This generates a JSON Web Token and can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
 
-The generated token's validity can be veryfied at [jwt.io](https://jwt.io).
+The generated token's validity can be verified at [jwt.io](https://jwt.io).
 
 ## API
 
-kontinuous is accessible from it's API. The API docs can be viewed via Swagger.
+kontinuous is accessible from it's API and docs can be viewed via Swagger.
 
 The API doc can be accessed via `{kontinuous-address}/apidocs`
 
