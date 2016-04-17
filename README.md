@@ -34,7 +34,11 @@ $ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded
 
 This will launch `kontinuous` via the locally configured `kubectl` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports the LoadBalancer service.
 
-Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See below for how to configure secrets.
+Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See [below](#running-in-kubernetes) for how to configure secrets.
+
+Once running, add a [.pipeline.yml](#pipeline-spec) to the root of your Github repo and configure the webhooks.
+
+The [CLI client](#clients) or [API](#api) can be used to view build status or logs.
 
 ### Dependencies
 
@@ -246,7 +250,9 @@ The API doc can be accessed via `{kontinuous-address}/apidocs`
 
 ## Clients
 
-At the moment, there is a basic cli client [here](https://github.com/AcalephStorage/kontinuous/tree/develop/cli). A Web based Dashboard is under development.
+At the moment, there is a basic cli client binary [here](https://github.com/AcalephStorage/kontinuous/releases) and code available [here](https://github.com/AcalephStorage/kontinuous/tree/develop/cli).
+
+A Web based Dashboard is under development.
 
 ## Development
 
