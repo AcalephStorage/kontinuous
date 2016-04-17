@@ -105,6 +105,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 
 	case "command":
 		commandContainer := createCommandContainer(stage, jobInfo)
+		commandContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(commandContainer, secrets)
 		addJobContainer(j, commandContainer)
 	}
