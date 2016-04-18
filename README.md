@@ -3,7 +3,7 @@
 Kontinuous - The Kubernetes Continuous Integration & Delivery Platform
 ==========
 
-Are you sick of having to deal with Jenkins and its plugins? Getting a headache from trying to get your builds working in Kubernetes? *Kontinous is here to save the day!*
+Are you sick of having to deal with Jenkins and its plugins? Getting a headache from trying to get your builds working in Kubernetes? *Kontinuous is here to save the day!*
 
 Kontinuous is a Continuous Integration & Delivery pipeline tool built specifically for Kubernetes. It aims to provide a platform for building and deploying applications using native Kubernetes Jobs and Pods.
 
