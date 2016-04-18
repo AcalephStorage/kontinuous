@@ -122,11 +122,13 @@ spec:
         type: ci-cd
     notif:
       - type: slack
-        secret: notifcreds
         metadata:
-          url: slackurl
-          username: slackuser
-          channel: slackchannel
+          url: slackurl             #taken from secret
+          username: slackuser       #taken from secret  
+          channel: slackchannel     #taken from secret
+    secrets:
+      - notifcreds
+      - docker-credentials
     stages:
       - name: Build Docker Image
         type: docker_build
@@ -145,8 +147,6 @@ spec:
           username: user        # taken from secret
           password: password    # taken from secret
           email: email          # taken from secret
-        secrets:
-          - docker-credentials
 ```
 
 The format is something similar to K8s Specs. Here are more details on some of the fields:
@@ -162,27 +162,27 @@ name: Friendly name
 type: {docker_build,command,docker_publish}
 params:
   key: value
-secrets:
-  - secret-name
 ```
 
 - `type` can be: `docker_build`, `docker_publish`, or `command`.
 - `params` is a map of parameters to be loaded as environment variables. 
-- `secrets` is a list of secrets that will be used as values for `params`.
 
 #### Notification
 
 - `type` can be: `slack`. 
-- `secret` is optional. It is the secret name of the secret for notificaitions. Secret data key will be used by `metadata` as value. Recommended for public repositories.
-- `metadata` is a map of values needed for certain notification type. By default, metadata value will be used. If `secret` is defined, the metadata value will be the secret data key. 
+- `metadata` is a map of values needed for a certain notification type. The metadata value should be a **key** from one of the secrets file defined
 
-`metadata` of notification `type=slack` has the following keys:
-
-- `url` is a slack incoming messages webhook url
-- `channel` is optional. If set, it will override default channel
-- `username` is optional. If set, it will override default username
+ `metadata` of notification `type=slack` has the following keys:
+ 
+  - `url` is a slack incoming messages webhook url.
+  - `channel` is optional. If set, it will override default channel
+  - `username` is optional. If set, it will override default username
  	
 In the future releases, kontinuous notification will support other notification services. e.g. email, hipchat, etc.
+
+### Secrets
+
+- `secrets` is a list of secrets that will be used as values for stages and notification.
 
 #### Stages
 

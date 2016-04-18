@@ -25,7 +25,6 @@ spec:
         app: awesome-webapp
     notif:
       - type: slack
-        secret: notifcredential
         metadata: 
           url: slackurl
           password: slackpassword
@@ -86,9 +85,7 @@ spec:
           username: acaleph
           password: ...
           email: ...
-        secrets:
-          - secrets
-          - secrets2
+
  `
 
 	validJobBuildInfo = `{

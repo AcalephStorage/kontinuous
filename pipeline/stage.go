@@ -51,7 +51,6 @@ type Stage struct {
 	JobName     string                 `json:"job_name,omitempty"`
 	PodName     string                 `json:"pod_name,omitempty"`
 	DockerImage string                 `json:"docker_image,omitempty"`
-	Secrets     []string               `json:"secrets,omitempty"`
 	Artifacts   []string               `json:"artifacts,omitempty"`
 }
 
