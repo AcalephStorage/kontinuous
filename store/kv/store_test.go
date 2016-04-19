@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
 	etcd "github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 )
 
 // A Mock of KV KeysAPI interface etd.KeysAPI
