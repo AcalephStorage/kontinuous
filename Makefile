@@ -12,7 +12,7 @@ format:
 
 deps:
 	@echo "--> Getting dependencies..."
-	@go get -v -d ./...
+	@go get -v ./...
 	@go get -v github.com/golang/lint/golint
 
 test: format
