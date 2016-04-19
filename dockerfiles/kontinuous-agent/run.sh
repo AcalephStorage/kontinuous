@@ -163,7 +163,7 @@ wait_for_success() {
 
 prepare_mc() {
 	echo "Setting up logs and artifact storage..."
-	mc config host add internal-storage "${S3_URL}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}"
+	mc config host add internal-storage "${S3_URL}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" S3v4
 	mc mb internal-storage/kontinuous || true
 	mkdir -pv /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/logs
 	mkdir -pv /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts
@@ -193,7 +193,7 @@ store_artifacts() {
 		for (( i=0; i<${container_count}; i++ )); do
 			local container_name=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{(index .spec.containers ${i}).name}}")
 			if [[ "$container_name" =~ ^(command|docker)-agent$ ]]; then
-				kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp $artifacts /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
+				kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp -r $artifacts /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
 			fi
 		done
 	fi
@@ -201,7 +201,6 @@ store_artifacts() {
 }
 
 pass() {
-	prepare_mc
 	store_logs
 	store_artifacts
 	notify_kontinuous "SUCCESS"
@@ -212,7 +211,6 @@ pass() {
 }
 
 fail() {
-	prepare_mc
 	store_logs
 	notify_kontinuous "FAIL"
 	touch /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/fail
@@ -221,9 +219,17 @@ fail() {
 	exit 1
 }
 
+load_artifacts() {
+	echo 'Loading previous artifacts...'
+	mc cp -r internal-storage/kontinuous/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/ /kontinuous/artifacts || true
+}
+
 main() {
 	setup
-	prepare_kube_config; if [[ "$?" != "0" ]]; then fail; fi
+	prepare_mc
+	load_artifacts	
+	prepare_kube_config; if [[ "$?" != "0" ]]; then fa
+	il; fi
 	clone_source;        if [[ "$?" != "0" ]]; then fail; fi
 	wait_for_ready;      if [[ "$?" != "0" ]]; then fail; fi
 	wait_for_success;    if [[ "$?" != "0" ]]; then fail; fi
