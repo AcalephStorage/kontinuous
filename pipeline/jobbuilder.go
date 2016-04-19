@@ -69,10 +69,6 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 
 	stage := getCurrentStage(definitions, jobInfo)
 
-	if len(stage.Artifacts) != 0 {
-		artifacts := getArtifacts(stage)
-		j.AddAnnotations("kontinuous_artifacts", artifacts)
-	}
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
@@ -199,9 +195,27 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 			}
 			container.SetArgs(stringArg...)
 		case "IMAGE":
+			// if it's a custom image, we're setting the workingDir
+			// to /kontinuous/src
 			container.Image = paramValue.(string)
+			container.WorkingDir = "/kontinuous/src"
+		case "WORKING_DIR":
+			container.WorkingDir = paramValue.(string)
+		default:
+			container.AddEnv(strings.ToUpper(paramKey), paramValue.(string))
 		}
 	}
+
+	envVars := map[string]string{
+		"INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
+		"PIPELINE_ID":       jobInfo.PipelineUUID,
+		"BUILD_ID":          jobInfo.Build,
+		"STAGE_ID":          jobInfo.Stage,
+		"COMMIT":            jobInfo.Commit,
+		"BRANCH":            jobInfo.Branch,
+	}
+	setContainerEnv(container, envVars)
+
 	return container
 }
 
@@ -233,10 +247,6 @@ func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
 		}
 	}
 	return secrets
-}
-
-func getArtifacts(stage *Stage) string {
-	return fmt.Sprintf("{%s}", strings.Join(stage.Artifacts, ","))
 }
 
 func createJobContainer(name string, image string) *kube.Container {
