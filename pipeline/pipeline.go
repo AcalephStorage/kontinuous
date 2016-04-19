@@ -60,7 +60,6 @@ type (
 	Notifier struct {
 		Type      string                 `json:"type"`
 		Metadata  map[string]interface{} `json:"metadata, omitempty"`
-		Secret    string                 `json:"secret, omitempty"`
 		Namespace string                 `json:"-"`
 	}
 )
@@ -77,6 +76,7 @@ type Pipeline struct {
 	Login     string      `json:"login"`
 	Source    string      `json:"-"`
 	Notifiers []*Notifier `json:"notif,omitempty"`
+	Secrets   []string    `json:"secrets,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -199,7 +199,8 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	keys.Private, _ = kvClient.Get(path + "/keys/private")
 	p.Keys = keys
 	p.Name = p.fullName()
-
+	secrets, _ := kvClient.Get(path + "/secrets")
+	p.Secrets = strings.Split(secrets, ",")
 	pipelineNotifiers := []*Notifier{}
 	notifiers, _ := kvClient.GetDir(path + "/notif")
 	for _, notifier := range notifiers {
@@ -251,6 +252,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	p.Name = p.fullName()
 	path := pipelineNamespace + p.Name
 	events := strings.Join(p.Events, ",")
+	pipelineSecrets := strings.Join(p.Secrets, ",")
 	isNew := false
 
 	_, err = kvClient.GetDir(path)
@@ -282,6 +284,9 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(path+"/source", p.Source); err != nil {
 		return handleSaveError(path, isNew, err, kvClient)
 	}
+	if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
+		return handleSaveError(path, isNew, err, kvClient)
+	}
 
 	if p.Notifiers != nil && len(p.Notifiers) > 0 {
 		if err = kvClient.PutDir(path + "/notif"); err != nil {
@@ -293,12 +298,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 
 	for _, notifier := range p.Notifiers {
 		notifTypePath := fmt.Sprintf("%s/notif/%s", path, notifier.Type)
-		hasSecret := false
-
-		if notifier.Secret != "" {
-			hasSecret = true
-			secrets = getNotifSecret(notifier.Secret, notifier.Namespace)
-		}
+		secrets = getNotifSecret(p.Secrets, notifier.Namespace)
 
 		if err = kvClient.PutDir(notifTypePath); err != nil {
 			return handleSaveError(path, isNew, err, kvClient)
@@ -307,8 +307,8 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 		for key, value := range notifier.Metadata {
 			notifpath := fmt.Sprintf("%s/%s", notifTypePath, key)
 			notifValue := value.(string)
-			if hasSecret && secrets != nil {
-				notifValue = strings.TrimSpace(secrets[notifValue])
+			if secrets != nil {
+				notifValue = secrets[notifValue]
 			}
 			if err = kvClient.Put(notifpath, notifValue); err != nil {
 				return handleSaveError(notifpath, isNew, err, kvClient)
@@ -318,15 +318,18 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	return nil
 }
 
-func getNotifSecret(secretName, namespace string) map[string]string {
-	kubeClient, _ := kube.NewClient("https://kubernetes.default")
+func getNotifSecret(pipelineSecrets []string, namespace string) map[string]string {
 	secrets := make(map[string]string)
-	secretEnv, err := kubeClient.GetSecret(namespace, secretName)
-	if err != nil {
-		return nil
-	}
-	for key, value := range secretEnv {
-		secrets[key] = value
+
+	for _, secretName := range pipelineSecrets {
+		kubeClient, _ := kube.NewClient("https://kubernetes.default")
+		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
+		if err != nil {
+			continue
+		}
+		for key, value := range secretEnv {
+			secrets[key] = strings.TrimSpace(value)
+		}
 	}
 	return secrets
 }

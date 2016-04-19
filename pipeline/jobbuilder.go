@@ -76,7 +76,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
-	secrets := getSecrets(stage, getNamespace(definitions))
+	secrets := getSecrets(definitions.Spec.Template.Secrets, getNamespace(definitions))
 
 	agentContainer := createAgentContainer(definitions, jobInfo)
 	agentContainer.AddVolumeMountPoint(source, "/kontinuous/src", false)
@@ -217,12 +217,12 @@ func setContainerEnv(container *kube.Container, envVars map[string]string) {
 
 }
 
-func getSecrets(stage *Stage, namespace string) map[string]string {
-	jobClient, _ := kube.NewClient("https://kubernetes.default")
+func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
+	kubeClient, _ := kube.NewClient("https://kubernetes.default")
 	secrets := make(map[string]string)
 
-	for _, secret := range stage.Secrets {
-		secretEnv, err := jobClient.GetSecret(namespace, secret)
+	for _, secret := range pipelineSecrets {
+		secretEnv, err := kubeClient.GetSecret(namespace, secret)
 		if err != nil {
 			logrus.Printf("Unable to get secret %s", secret)
 			continue
