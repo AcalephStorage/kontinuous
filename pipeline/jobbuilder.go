@@ -179,7 +179,9 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 	container := createJobContainer(containerName, imageName)
 	container.Image = imageName
 	container.AddEnv("IMAGE", cmdImage)
-	container.WorkingDir = fmt.Sprintf("/kontinuous/src/%s/%s/%d", jobInfo.PipelineUUID, jobInfo.Build, stage.Index)
+	container.WorkingDir = fmt.Sprintf("/kontinuous/src")
+	stageIdx := strconv.Itoa(stage.Index)
+	container.AddEnv("WORKING_DIR", fmt.Sprintf("/kontinuous/src/%s/%s/%s", jobInfo.PipelineUUID, jobInfo.Build, stageIdx))
 
 	for paramKey, paramValue := range stage.Params {
 
