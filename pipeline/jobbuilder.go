@@ -174,8 +174,12 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container {
 
 	containerName := fmt.Sprintf("%s-%s", jobInfo.PipelineUUID, jobInfo.Build)
-	imageName := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), containerName, jobInfo.Commit)
+	cmdImage := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), containerName, jobInfo.Commit)
+	imageName := "quay.io/acaleph/command-agent:latest"
 	container := createJobContainer(containerName, imageName)
+	container.Image = imageName
+	container.AddEnv("IMAGE", cmdImage)
+	container.WorkingDir = fmt.Sprintf("/kontinuous/src/%v/%v/%v", jobInfo.PipelineUUID, jobInfo.Build, stage.Index)
 
 	for paramKey, paramValue := range stage.Params {
 
@@ -186,7 +190,7 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 			for i, c := range commands {
 				stringCommand[i] = c.(string)
 			}
-			container.SetCommand(stringCommand...)
+			container.AddEnv("COMMAND", strings.Join(stringCommand, " "))
 		case "ARGS":
 			args := paramValue.([]interface{})
 			stringArg := make([]string, len(args))
@@ -195,12 +199,17 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 			}
 			container.SetArgs(stringArg...)
 		case "IMAGE":
-			// if it's a custom image, we're setting the workingDir
-			// to /kontinuous/src
-			container.Image = paramValue.(string)
-			container.WorkingDir = "/kontinuous/src"
+			container.AddEnv("IMAGE", paramValue.(string))
 		case "WORKING_DIR":
 			container.WorkingDir = paramValue.(string)
+			container.AddEnv("WORKING_DIR", paramValue.(string))
+		case "DEPENDENCIES":
+			dependencies := paramValue.([]interface{})
+			stringDep := make([]string, len(dependencies))
+			for i, d := range dependencies {
+				stringDep[i] = d.(string)
+			}
+			container.AddEnv("DEPENDENCIES", strings.Join(stringDep, " "))
 		default:
 			container.AddEnv(strings.ToUpper(paramKey), paramValue.(string))
 		}
@@ -215,6 +224,13 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 		"BRANCH":            jobInfo.Branch,
 	}
 	setContainerEnv(container, envVars)
+
+	keySlice := make([]string, 0)
+	for _, env := range container.Env {
+		keySlice = append(keySlice, env.Name)
+	}
+	keys := strings.Join(keySlice, " ")
+	container.AddEnv("ENV_KEYS", keys)
 
 	return container
 }
