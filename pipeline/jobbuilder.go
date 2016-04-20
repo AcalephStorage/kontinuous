@@ -174,13 +174,14 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container {
 
 	containerName := "command-agent"
-	cmdImage := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), containerName, jobInfo.Commit)
+	stageIdx := strconv.Itoa(stage.Index)
+	cmdImageName := fmt.Sprintf("%s-%s-%d", jobInfo.PipelineUUID, jobInfo.Build, stageIdx)
+	cmdImage := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), cmdImageName, jobInfo.Commit)
 	imageName := "quay.io/acaleph/command-agent:latest"
 	container := createJobContainer(containerName, imageName)
 	container.Image = imageName
 	container.AddEnv("IMAGE", cmdImage)
 	container.WorkingDir = fmt.Sprintf("/kontinuous/src")
-	stageIdx := strconv.Itoa(stage.Index)
 	container.AddEnv("WORKING_DIR", fmt.Sprintf("/kontinuous/src/%s/%s/%s", jobInfo.PipelineUUID, jobInfo.Build, stageIdx))
 
 	for paramKey, paramValue := range stage.Params {
@@ -224,6 +225,7 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 		"STAGE_ID":          jobInfo.Stage,
 		"COMMIT":            jobInfo.Commit,
 		"BRANCH":            jobInfo.Branch,
+		"NAMESPACE":         stage.Namespace,
 	}
 	setContainerEnv(container, envVars)
 

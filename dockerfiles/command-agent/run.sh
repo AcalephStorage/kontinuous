@@ -81,7 +81,7 @@ run_image() {
 	sed -i '' "s/__COMMAND__/${COMMAND}/g" /tmp/pod.yml
 	sed -i '' "s/__ENV_VARS__/${env_vars}/g" /tmp/pod.yml
 
-	kubectl create -f /tmp.pod.yml
+	kubectl create -f /tmp/pod.yml
 }
 
 generate_result(){
