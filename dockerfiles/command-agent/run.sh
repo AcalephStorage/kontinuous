@@ -53,7 +53,7 @@ clean(){
     if [[ ! -f deployFile ]]; then
         echo "Clean up Failed. File is unavailable."
         return 1
-    done
+    fi
 
     kubectl delete -f deployFile
     if [[ "$?" == "1" ]]; then
