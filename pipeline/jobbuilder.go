@@ -261,7 +261,7 @@ func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
 		}
 		logrus.Printf("Secret retrieved %s", secretEnv)
 		for key, value := range secretEnv {
-			secrets[key] = value
+			secrets[key] = strings.TrimSpace(value)
 		}
 	}
 	return secrets
