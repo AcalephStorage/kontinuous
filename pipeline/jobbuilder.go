@@ -175,7 +175,7 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 
 	containerName := "command-agent"
 	stageIdx := strconv.Itoa(stage.Index)
-	cmdImageName := fmt.Sprintf("%s-%s-%d", jobInfo.PipelineUUID, jobInfo.Build, stageIdx)
+	cmdImageName := fmt.Sprintf("%s-%s-%s", jobInfo.PipelineUUID, jobInfo.Build, stageIdx)
 	cmdImage := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), cmdImageName, jobInfo.Commit)
 	imageName := "quay.io/acaleph/command-agent:latest"
 	container := createJobContainer(containerName, imageName)
