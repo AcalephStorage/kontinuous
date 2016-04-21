@@ -76,6 +76,7 @@ run_image() {
 	cp /root/pod_template.yml /tmp/pod.yml
 	sed -i "s|__POD_NAME__|${pod_name}|g" /tmp/pod.yml
 	sed -i "s|__NAMESPACE__|${NAMESPACE}|g" /tmp/pod.yml
+	sed -i "s|__WORKING_DIR__|${WORKING_DIR}|g" /tmp/pod.yml
 	sed -i "s|__NODE_NAME__|${node_name}|g" /tmp/pod.yml
 	sed -i "s|__IMAGE__|${IMAGE}|g" /tmp/pod.yml
 	sed -i "s|__COMMAND__|${COMMAND}|g" /tmp/pod.yml

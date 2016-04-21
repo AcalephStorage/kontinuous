@@ -19,6 +19,7 @@ spec:
   containers:
     - name: __POD_NAME__-cmd
       image: __IMAGE__
+      workingDir: __WORKING_DIR__
       imagePullPolicy: Always 
       volumeMounts:
         - name: kontinuous-source
