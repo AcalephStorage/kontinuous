@@ -77,9 +77,9 @@ run_image() {
 	sed -i '' "s/__POD_NAME__/${pod_name}/g" /tmp/pod.yml
 	sed -i '' "s/__NAMESPACE__/${NAMESPACE}/g" /tmp/pod.yml
 	sed -i '' "s/__NODE_NAME__/${node_name}/g" /tmp/pod.yml
-	sed -i '' "s/__IMAGE__/${IMAGE}/g" /tmp/pod.yml
-	sed -i '' "s/__COMMAND__/${COMMAND}/g" /tmp/pod.yml
-	sed -i '' "s/__ENV_VARS__/${env_vars}/g" /tmp/pod.yml
+	sed -i '' "s!__IMAGE__!${IMAGE}!g" /tmp/pod.yml
+	sed -i '' "s!__COMMAND__!${COMMAND}!g" /tmp/pod.yml
+	sed -i '' "s!__ENV_VARS__!${env_vars}!g" /tmp/pod.yml
 
 	kubectl create -f /tmp/pod.yml
 }
