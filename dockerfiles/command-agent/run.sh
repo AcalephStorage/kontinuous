@@ -67,7 +67,7 @@ clean(){
 run_image() {
 	local pod_name="$1"
 	# get which node the current job is running on
-	local node_name=$(kubectl get pods ${pod_name} -o template --template="{{ .spec.nodeName }}")
+	local node_name=$(kubectl get pods ${pod_name} -o template --template="{{ .spec.nodeName }}" --namespace=${NAMESPACE})
 
 	# prepare vars
 	local env_vars="`for key in ${ENV_KEYS}; do echo \"        - name: $key\"; echo \"          value: \\\"$(eval echo \\$$key)\\\"\"; done`"
