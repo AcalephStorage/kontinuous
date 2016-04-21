@@ -70,6 +70,7 @@ run_image() {
 	local node_name=$(kubectl get pods ${pod_name} -o template --template="{{ .spec.nodeName }}" --namespace=${NAMESPACE})
 
 	# prepare vars
+	local commands="`for cmd in ${COMMAND}; do echo \"        - ${cmd}\"; done`"
 	local env_vars="`for key in ${ENV_KEYS}; do echo \"        - name: $key\"; echo \"          value: \\\"$(eval echo \\$$key)\\\"\"; done`"
 
 	# do the sed thingy
@@ -79,7 +80,9 @@ run_image() {
 	sed -i "s|__WORKING_DIR__|${WORKING_DIR}|g" /tmp/pod.yml
 	sed -i "s|__NODE_NAME__|${node_name}|g" /tmp/pod.yml
 	sed -i "s|__IMAGE__|${IMAGE}|g" /tmp/pod.yml
-	sed -i "s|__COMMAND__|${COMMAND}|g" /tmp/pod.yml
+	echo "      command:" >> /tmp/pod.yml
+	echo "$commands" >> /tmp/pod.yml
+	echo "      env:" >> /tmp/pod.yml
 	echo "$env_vars" >> /tmp/pod.yml
 
 	kubectl create -f /tmp/pod.yml
@@ -105,7 +108,7 @@ wait_for_success() {
 	local exit_code_line=""
 	until [[ "${exit_code_line}" != "" ]]; do
 		sleep 5
-		exit_code_line=$(kubectl get pods ${pod_name}-cmd -o yaml | grep exitCode)
+		exit_code_line=$(kubectl get pods ${pod_name}-cmd -o yaml --namespace="${NAMESPACE}" | grep exitCode)
 	done
 
 	local exit_code=$(echo ${exit_code_line} | awk '{print $2}')

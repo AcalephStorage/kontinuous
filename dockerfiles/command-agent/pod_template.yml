@@ -31,6 +31,3 @@ spec:
         - name: kontinuous-docker
           mountPath: /var/run/docker.sock
           readOnly: false
-      command:
-        - "__COMMAND__"
-      env:
