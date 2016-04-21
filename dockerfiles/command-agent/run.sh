@@ -113,11 +113,6 @@ wait_for_success() {
 
 	local exit_code=$(echo ${exit_code_line} | awk '{print $2}')
 
-	echo "Command Agent Logs:"
-	echo "-------------------"
-	# print logs afterwards
-	kubectl logs --namespace="${NAMESPACE}" "${pod_name}-cmd"
-
 	if [[ "${exit_code}" == "0" ]]; then
 		return 0
 	fi
@@ -142,7 +137,13 @@ run_command() {
 	local pod_name=$(kubectl get pods --namespace=${NAMESPACE} --selector="pipeline=${PIPELINE_ID},build=${BUILD_ID},stage=${STAGE_ID}" --no-headers | awk '{print $1}')
 	run_image ${pod_name}
 
-	local result=$(wait_for_success "${pod_name}")
+	wait_for_success "${pod_name}"
+	local result="$?"
+
+	echo "Command Agent Logs:"
+	echo "-------------------"
+	# print logs afterwards
+	kubectl logs --namespace="${NAMESPACE}" "${pod_name}-cmd"
 
 	# cleanup
 	kubectl delete -f /tmp/pod.yml || true

@@ -193,7 +193,7 @@ store_artifacts() {
 		for (( i=0; i<${container_count}; i++ )); do
 			local container_name=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{(index .spec.containers ${i}).name}}")
 			if [[ "$container_name" =~ ^(command|docker)-agent$ ]]; then
-				kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp -r $artifacts /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
+				kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp -r /kontinuous/src/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/$artifacts /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
 			fi
 		done
 	fi
