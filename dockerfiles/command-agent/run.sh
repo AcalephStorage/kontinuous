@@ -118,7 +118,10 @@ wait_for_success() {
 	# print logs afterwards
 	kubectl logs --namespace="${NAMESPACE}" "${pod_name}-cmd"
 
-	return exit_code
+	if [[ "${exit_code}" == "0" ]]; then
+		return 0
+	fi
+	return 1
 }
 
 run_command() {
