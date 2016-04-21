@@ -33,4 +33,3 @@ spec:
       command:
         - "__COMMAND__"
       env:
-__ENV_VARS__
