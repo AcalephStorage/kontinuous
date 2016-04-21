@@ -70,7 +70,7 @@ run_image() {
 	local node_name=$(kubectl get pods ${pod_name} -o template --template="{{ .spec.nodeName }}")
 
 	# prepare vars
-	local env_vars="`for key in ${ENV_KEYS}; do echo \"        - name: $key\"; echo \"          value: $(eval echo \\$$key)\"; done`"
+	local env_vars="`for key in ${ENV_KEYS}; do echo \"        - name: $key\"; echo \"          value: \\\"$(eval echo \\$$key)\\\"\"; done`"
 
 	# do the sed thingy
 	cp /root/pod_template.yml /tmp/pod.yml
