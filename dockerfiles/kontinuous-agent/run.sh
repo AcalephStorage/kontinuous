@@ -228,8 +228,7 @@ main() {
 	setup
 	prepare_mc
 	load_artifacts	
-	prepare_kube_config; if [[ "$?" != "0" ]]; then fa
-	il; fi
+	prepare_kube_config; if [[ "$?" != "0" ]]; then fail; fi
 	clone_source;        if [[ "$?" != "0" ]]; then fail; fi
 	wait_for_ready;      if [[ "$?" != "0" ]]; then fail; fi
 	wait_for_success;    if [[ "$?" != "0" ]]; then fail; fi
