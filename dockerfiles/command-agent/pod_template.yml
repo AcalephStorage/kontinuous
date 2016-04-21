@@ -5,7 +5,7 @@ metadata:
   namespace: __NAMESPACE__     
 spec:
   nodeSelector:
-    "kubernetes.io/hostname": __NODE_NAME__
+    kubernetes.io/hostname: __NODE_NAME__
   volumes:
     - name: kontinuous-source
       hostPath:
