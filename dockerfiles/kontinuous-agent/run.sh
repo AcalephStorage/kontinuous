@@ -185,18 +185,24 @@ store_logs() {
 
 store_artifacts() {
 	echo "storing artifacts..."
-	# get associated pod
 	local pod_name=$(kubectl get pods --namespace=${NAMESPACE} --selector="pipeline=${PIPELINE_ID},build=${BUILD_ID},stage=${STAGE_ID}" --no-headers | awk '{print $1}')
-	local artifacts=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{.metadata.annotations.kontinuous_artifacts}}")
+	local job=$(kubectl get jobs --namespace=${NAMESPACE} --selector="pipeline=${PIPELINE_ID},build=${BUILD_ID},stage=${STAGE_ID}" --no-headers -o template --template="{{(index .items 0).metadata.name}}")
+	local artifacts=$(kubectl get jobs --namespace=${NAMESPACE} -o template --template="{{.metadata.annotations.kontinuous_artifacts}}" ${job})
 	if [[ "$artifacts" != "<no value>" ]]; then
 		local container_count=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{len .spec.containers}}")
 		for (( i=0; i<${container_count}; i++ )); do
 			local container_name=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{(index .spec.containers ${i}).name}}")
-			if [[ "$container_name" =~ ^(command|docker)-agent$ ]]; then
-				kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp -r /kontinuous/src/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/$artifacts /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
-			fi
+			for artifact in ${artifacts}; do
+				if [[ "$container_name" == "docker-agent" ]]; then
+					kubectl exec ${pod_name} --namespace=${NAMESPACE} -c ${container-name} -- cp -r /kontinuous/src/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/$artifact /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
+				fi
+				if [[ "$container_name" == "command-agent" ]]; then
+					kubectl exec "${pod_name}-cmd" --namespace=${NAMESPACE} -- cp -r /kontinuous/src/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/$artifact /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/
+				fi
+			done
 		done
 	fi
+	echo "storing to mc..."
 	mc mirror --quiet --force /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/mc/ internal-storage/kontinuous
 }
 
@@ -221,7 +227,7 @@ fail() {
 
 load_artifacts() {
 	echo 'Loading previous artifacts...'
-	mc cp -r internal-storage/kontinuous/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/ /kontinuous/artifacts || true
+	mc cp -r --quiet internal-storage/kontinuous/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/artifacts/ /kontinuous/src/artifacts/
 }
 
 main() {
