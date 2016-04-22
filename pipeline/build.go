@@ -32,6 +32,19 @@ type Build struct {
 	Stages       []*Stage `json:"stages,omitempty"`
 }
 
+// BuildSummary contains the summarized details of a build
+type BuildSummary struct {
+	ID       string `json:"id"`
+	Number   int    `json:"number"`
+	Status   string `json:"status"`
+	Created  int64  `json:"created"`
+	Started  int64  `json:"started"`
+	Finished int64  `json:"finished"`
+	Branch   string `json:"branch"`
+	Commit   string `json:"commit"`
+	Author   string `json:"author"`
+}
+
 func getBuild(path string, kvClient kv.KVClient) *Build {
 	b := new(Build)
 	b.ID, _ = kvClient.Get(path + "/uuid")
@@ -51,6 +64,24 @@ func getBuild(path string, kvClient kv.KVClient) *Build {
 	b.Started, _ = strconv.ParseInt(started, 10, 64)
 	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 	b.GetStages(kvClient)
+
+	return b
+}
+
+func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
+	b := new(BuildSummary)
+	b.ID, _ = kvClient.Get(path + "/uuid")
+	b.Status, _ = kvClient.Get(path + "/status")
+	b.Branch, _ = kvClient.Get(path + "/branch")
+	b.Commit, _ = kvClient.Get(path + "/commit")
+	b.Author, _ = kvClient.Get(path + "/author")
+	b.Number, _ = kvClient.GetInt(path + "/number")
+	created, _ := kvClient.Get(path + "/created")
+	started, _ := kvClient.Get(path + "/started")
+	finished, _ := kvClient.Get(path + "/finished")
+	b.Created, _ = strconv.ParseInt(created, 10, 64)
+	b.Started, _ = strconv.ParseInt(started, 10, 64)
+	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 
 	return b
 }

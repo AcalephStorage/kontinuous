@@ -31,12 +31,12 @@ type (
 	}
 
 	PipelineData struct {
-		ID          string   `json:"id"`
-		Owner       string   `json:"owner"`
-		Repo        string   `json:"repo"`
-		Events      []string `json:"events"`
-		Login       string   `json:"login"`
-		LatestBuild int      `json:"latest_build"`
+		ID          string     `json:"id"`
+		Owner       string     `json:"owner"`
+		Repo        string     `json:"repo"`
+		Events      []string   `json:"events"`
+		Login       string     `json:"login"`
+		LatestBuild *BuildData `json:"latest_build"`
 	}
 
 	RepoData struct {
@@ -167,10 +167,10 @@ func (c *Config) GetStages(client *http.Client, owner, repo string, buildNumber 
 		if err != nil {
 			return nil, err
 		}
-		if pipeline.LatestBuild == 0 {
+		if pipeline.LatestBuild == nil {
 			return nil, errors.New("No builds for pipeline.")
 		}
-		buildNumber = pipeline.LatestBuild
+		buildNumber = pipeline.LatestBuild.Number
 	}
 
 	endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d/stages", owner, repo, buildNumber)
