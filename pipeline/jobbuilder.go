@@ -108,6 +108,10 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		addJobContainer(j, commandContainer)
 	}
 
+	if stage.Artifacts != nil && len(stage.Artifacts) > 0 {
+		j.AddAnnotations("kontinuous_artifacts", strings.Join(stage.Artifacts, " "))
+	}
+
 }
 
 func getCurrentStage(definitions *Definition, jobInfo *JobBuildInfo) (stage *Stage) {
