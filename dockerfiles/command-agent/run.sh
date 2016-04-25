@@ -123,7 +123,7 @@ run_command() {
 
 	# if deployment, deploy() else do the stuff below
 	if [[ "$DEPLOY" == "TRUE" ]]; then
-		local result=$(deploy "${WORKING_DIR}/${DEPLOY_FILE}")
+		local result=$(deploy "${DEPLOY_FILE}")
 		generate_result ${result}
 	fi 
 
