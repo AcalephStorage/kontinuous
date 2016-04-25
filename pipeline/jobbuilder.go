@@ -105,6 +105,14 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		commandContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		commandContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(commandContainer, secrets)
+
+		keySlice := make([]string, 0)
+		for _, env := range commandContainer.Env {
+			keySlice = append(keySlice, env.Name)
+		}
+		keys := strings.Join(keySlice, " ")
+		commandContainer.AddEnv("ENV_KEYS", keys)
+
 		addJobContainer(j, commandContainer)
 	}
 
@@ -230,6 +238,7 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 		"BRANCH":            jobInfo.Branch,
 		"NAMESPACE":         stage.Namespace,
 	}
+
 	setContainerEnv(container, envVars)
 
 	keySlice := make([]string, 0)
