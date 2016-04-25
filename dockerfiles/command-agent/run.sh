@@ -33,12 +33,13 @@ deploy(){
     #local deployFile="${WORKING_DIR}/${DEPLOY_FILE}"
     local deployFile="${WORKING_DIR}/$1"
 
-    if [[ ! -f deployFile ]]; then
-        echo "Deploy Failed. manifest.yml is unavailable."
+    if [[ ! -f ${deployFile} ]]; then
+
+        echo "Deploy Failed. $deployFile is unavailable."
         return 1
     fi
 
-    kubectl create -f deployFile
+    kubectl create -f ${deployFile}
     if [[ "$?" != "0" ]]; then
         echo "Deploy Failed. Unable to deploy app."
         return 1
@@ -123,8 +124,8 @@ run_command() {
 
 	# if deployment, deploy() else do the stuff below
 	if [[ "$DEPLOY" == "TRUE" ]]; then
-		local result=$(deploy "${DEPLOY_FILE}")
-		generate_result ${result}
+		deploy "${DEPLOY_FILE}"
+		generate_result "$?"
 	fi 
 
 
