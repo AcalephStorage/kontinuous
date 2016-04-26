@@ -51,12 +51,12 @@ deploy(){
 clean(){
     echo "Cleaning up"
     local deployFile="${WORKING_DIR}/$1"
-    if [[ ! -f deployFile ]]; then
+    if [[ ! -f ${deployFile} ]]; then
         echo "Clean up Failed. File is unavailable."
         return 1
     fi
 
-    kubectl delete -f deployFile
+    kubectl delete -f ${deployFile}
     if [[ "$?" == "1" ]]; then
         echo "Clean up Failed. Unable to remove app from the cluster."
         exit 1
