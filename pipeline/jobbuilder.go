@@ -176,7 +176,7 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 	}
 
 	for stageEnvKey, stageEnvValue := range stage.Params {
-		envVar[strings.ToUpper(stageEnvKey)] = stageEnvValue.(string)
+		envVar[strings.ToUpper(stageEnvKey)] = fmt.Sprintf("%v", stageEnvValue)
 	}
 
 	setContainerEnv(container, envVar)

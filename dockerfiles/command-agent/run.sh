@@ -123,11 +123,12 @@ wait_for_success() {
 run_command() {
 
 	# if deployment, deploy() else do the stuff below
-	if [[ "$DEPLOY" == "TRUE" ]]; then
+	shopt -s nocasematch
+	if [[ "$DEPLOY" == "true" ]]; then
 		deploy "${DEPLOY_FILE}"
 		generate_result "$?"
 	fi 
-
+	shopt -u nocasematch
 
 	# check if dependencies are defined
 	if [[ "${DEPENDENCIES}" != "" ]]; then
