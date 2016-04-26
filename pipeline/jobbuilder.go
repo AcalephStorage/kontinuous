@@ -225,7 +225,7 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 			}
 			container.AddEnv("DEPENDENCIES", strings.Join(stringDep, " "))
 		default:
-			container.AddEnv(strings.ToUpper(paramKey), paramValue.(string))
+			container.AddEnv(strings.ToUpper(paramKey), fmt.Sprintf("%v", paramValue))
 		}
 	}
 
