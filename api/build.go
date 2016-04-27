@@ -152,7 +152,7 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		if err != nil {
 			stageStatus.Status = ps.BuildFailure
 			stage.UpdateStatus(stageStatus, pipeline, build, b.KVClient, client)
-			msg := fmt.Sprintf("Unable to deploy resouce to kubernetes for %s/%s/builds/%s/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
+			msg := fmt.Sprintf("Unable to deploy resouce to kubernetes for %s/%s/builds/%d/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
 			jsonError(res, http.StatusInternalServerError, err, msg)
 			return
 		}

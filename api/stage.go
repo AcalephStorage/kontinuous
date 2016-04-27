@@ -221,7 +221,7 @@ func (s *StageResource) runStage(pipeline *ps.Pipeline, build *ps.Build, stage *
 	info := &ps.NextJobInfo{build.Commit, build.Number, stage.Index}
 	definition, jobInfo, err := pipeline.PrepareBuildStage(info, scmClient)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to get stage details %s/%s/builds/%s/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
+		msg := fmt.Sprintf("Unable to get stage details %s/%s/builds/%d/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
 		return err, msg
 	}
 
