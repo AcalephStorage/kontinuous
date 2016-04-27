@@ -11,7 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"github.com/Sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"github.com/ghodss/yaml"
 	"io/ioutil"
 	"net/http"
 )
@@ -82,9 +82,13 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 
 		logrus.Info("deploying to kubernetes: ", resource)
 
-		var out map[string]interface{}
+		data, err := yaml.YAMLToJSON([]byte(resource))
+		if err != nil {
+			return err
+		}
 
-		err := yaml.Unmarshal([]byte(resource), &out)
+		var out map[string]interface{}
+		err = json.Unmarshal(data, &out)
 		if err != nil {
 			return err
 		}
@@ -105,11 +109,6 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 
 		// endpoint is /api/v1/namespaces/{namespace}/{resourceType}
 		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
-		data, err := json.Marshal(out)
-		if err != nil {
-			return err
-		}
-
 		err = r.doPost(uri, bytes.NewReader(data))
 		if err != nil {
 			return err
