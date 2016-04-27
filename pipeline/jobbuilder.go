@@ -252,8 +252,8 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 }
 
 func deployJob(j *kube.Job) error {
-	jobClient, _ := kube.NewClient("https://kubernetes.default")
-	return jobClient.CreateJob(j)
+	kubeClient, _ := kube.NewClient("https://kubernetes.default")
+	return kubeClient.CreateJob(j)
 }
 
 func setContainerEnv(container *kube.Container, envVars map[string]string) {
@@ -299,4 +299,8 @@ func getNamespace(definition *Definition) string {
 		return "default"
 	}
 	return definition.Metadata["namespace"].(string)
+}
+
+func deployToK8s(deployFile string) {
+
 }
