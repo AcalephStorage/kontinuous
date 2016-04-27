@@ -92,7 +92,11 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 		}
 
 		kind := strings.ToLower(out["kind"].(string)) + "s"
-		namespace := out["metadata"].(map[interface{}]interface{})["namespace"].(string)
+		metadata := out["metadata"]
+		namespace := "default"
+		if metadata != nil {
+			namespace = metadata.(map[interface{}]interface{})["namespace"].(string)
+		}
 
 		// endpoint is /api/v1/namespaces/{namespace}/{resourceType}
 		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
