@@ -225,14 +225,31 @@ func (s *StageResource) runStage(pipeline *ps.Pipeline, build *ps.Build, stage *
 		return err, msg
 	}
 
-	if _, err := ps.CreateJob(definition, jobInfo); err != nil {
-		failed_status := &ps.StatusUpdate{
-			Status:    ps.BuildFailure,
-			Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+	stageStatus := &ps.StatusUpdate{
+		Status:    ps.BuildFailure,
+		Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+	}
+
+	switch stage.Type {
+	case "deploy":
+		stageStatus.Status = ps.BuildRunning
+		stage.UpdateStatus(stageStatus, pipeline, build, s.KVClient, scmClient)
+		err := stage.Deploy(pipeline, build, scmClient)
+		if err != nil {
+			stageStatus.Status = ps.BuildFailure
+			stage.UpdateStatus(stageStatus, pipeline, build, s.KVClient, scmClient)
+			msg := fmt.Sprintf("Unable to deploy resouce to kubernetes for %s/%s/builds/%s/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
+			return err, msg
 		}
-		stage.UpdateStatus(failed_status, pipeline, build, s.KVClient, scmClient)
-		msg := fmt.Sprintf("Unable to create job for %s/%s/builds/%s/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
-		return err, msg
+		stageStatus.Status = ps.BuildSuccess
+		stage.UpdateStatus(stageStatus, pipeline, build, s.KVClient, scmClient)
+
+	default:
+		if _, err := ps.CreateJob(definition, jobInfo); err != nil {
+			stage.UpdateStatus(stageStatus, pipeline, build, s.KVClient, scmClient)
+			msg := fmt.Sprintf("Unable to create job for %s/%s/builds/%s/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
+			return err, msg
+		}
 	}
 
 	return nil, ""
