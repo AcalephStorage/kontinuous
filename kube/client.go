@@ -83,10 +83,13 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 		logrus.Info("deploying to kubernetes: ", resource)
 
 		var out map[string]interface{}
+
 		err := yaml.Unmarshal([]byte(resource), &out)
 		if err != nil {
 			return err
 		}
+
+		logrus.Info("parsed: ", out)
 
 		// if unmarshalled data is nil, skip
 		if out == nil {
