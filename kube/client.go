@@ -84,12 +84,14 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 
 		data, err := yaml.YAMLToJSON([]byte(resource))
 		if err != nil {
+			logrus.WithError(err).Error("unable to convert yaml to json")
 			return err
 		}
 
 		var out map[string]interface{}
 		err = json.Unmarshal(data, &out)
 		if err != nil {
+			logrus.WithError(err).Error("unable to unmarshal json to map")
 			return err
 		}
 
@@ -111,6 +113,7 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
 		err = r.doPost(uri, bytes.NewReader(data))
 		if err != nil {
+			logrus.WithError(err).Error("unable to POST data")
 			return err
 		}
 	}
