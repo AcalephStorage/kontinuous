@@ -273,7 +273,6 @@ func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
 			logrus.Printf("Unable to get secret %s", secret)
 			continue
 		}
-		logrus.Printf("Secret retrieved %s", secretEnv)
 		for key, value := range secretEnv {
 			secrets[key] = strings.TrimSpace(value)
 		}

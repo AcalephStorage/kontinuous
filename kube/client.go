@@ -95,8 +95,6 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 			return err
 		}
 
-		logrus.Info("parsed: ", out)
-
 		// if unmarshalled data is nil, skip
 		if out == nil {
 			continue
