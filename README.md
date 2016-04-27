@@ -164,7 +164,7 @@ params:
   key: value
 ```
 
-- `type` can be: `docker_build`, `docker_publish`, or `command`.
+- `type` can be: `docker_build`, `docker_publish`, `command`, or `deploy`.
 - `params` is a map of parameters to be loaded as environment variables. 
 
 #### Notification
@@ -201,9 +201,14 @@ After a build, the image is stored inside the internal docker registry.
 Optional params:
 
  - `require_crendentials` - defaults to `false`. Set to `true` if registry requires authentication
- - `username` - the username. This should be a **key** from one of the secrets file defined
- - `password` - the password. This should be a **key** from one of the secrets file defined
- - `email` - the email. This should be a **key** from one of the secrets file 
+
+Required secrets:
+
+ - `dockeruser`
+ - `dockerpass`
+ - `dockeremail`
+
+	These secrets needs to be defined in at least one of the secrets provided. 
 
 The image that will be pushed is the image that was previously built. This does not work for now if no image was created. 
 
@@ -213,6 +218,9 @@ Optional params are:
 
  - `args` - a list of string to serve as the arguments for the command
  - `image` - the image to run the commands in. If not specified, the previous built image will be used.
+ - `dependencies` - a list of Kubernetes spec files to run as dependencies for running the command. Useful when running integration tests.
+
+`deploy` deploys a Kubernetes Spec file (yaml) to kubernetes. 
 
 
 ### Authentication

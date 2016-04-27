@@ -133,20 +133,40 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	if _, err := ps.CreateJob(definition, jobInfo); err != nil {
-		failed_status := &ps.StatusUpdate{
-			Status:    ps.BuildFailure,
-			Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
-		}
-		stage, err := findStage("1", build, b.KVClient)
+	stageStatus := &ps.StatusUpdate{
+		Status:    ps.BuildFailure,
+		Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+	}
+	stage, err := findStage("1", build, b.KVClient)
+	if err != nil {
+		jsonError(res, http.StatusInternalServerError, err, "Stage not found")
+		return
+	}
+
+	switch stage.Type {
+	case "deploy":
+		stageStatus.Status = ps.BuildRunning
+		stage.UpdateStatus(stageStatus, pipeline, build, b.KVClient, client)
+
+		err := stage.Deploy(pipeline, build, client)
 		if err != nil {
-			jsonError(res, http.StatusInternalServerError, err, "Stage not found")
+			stageStatus.Status = ps.BuildFailure
+			stage.UpdateStatus(stageStatus, pipeline, build, b.KVClient, client)
+			msg := fmt.Sprintf("Unable to deploy resouce to kubernetes for %s/%s/builds/%d/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
+			jsonError(res, http.StatusInternalServerError, err, msg)
 			return
 		}
-		stage.UpdateStatus(failed_status, pipeline, build, b.KVClient, client)
-		msg := fmt.Sprintf("Unable to create job for %s/%s/builds/%s/stages/%d", owner, repo, build.Number, 1)
-		jsonError(res, http.StatusInternalServerError, err, msg)
-		return
+		stageStatus.Status = ps.BuildSuccess
+		stage.UpdateStatus(stageStatus, pipeline, build, b.KVClient, client)
+
+	default:
+		if _, err := ps.CreateJob(definition, jobInfo); err != nil {
+			stage.UpdateStatus(stageStatus, pipeline, build, b.KVClient, client)
+			msg := fmt.Sprintf("Unable to create job for %s/%s/builds/%s/stages/%d", owner, repo, build.Number, 1)
+			jsonError(res, http.StatusInternalServerError, err, msg)
+			return
+		}
+
 	}
 
 	res.WriteEntity(build)

@@ -166,6 +166,7 @@ type Container struct {
 	Name            string           `json:"name,omitempty"`
 	Image           string           `json:"image,omitempty"`
 	ImagePullPolicy string           `json:"imagePullPolicy,omitempty"`
+	WorkingDir      string           `json:"workingDir,omitempty"`
 	Command         []string         `json:"command,omitempty"`
 	Args            []string         `json:"args,omitempty"`
 	Ports           []*ContainerPort `json:"ports,omitempty"`

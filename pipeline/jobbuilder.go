@@ -69,10 +69,6 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 
 	stage := getCurrentStage(definitions, jobInfo)
 
-	if len(stage.Artifacts) != 0 {
-		artifacts := getArtifacts(stage)
-		j.AddAnnotations("kontinuous_artifacts", artifacts)
-	}
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
@@ -109,7 +105,19 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		commandContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		commandContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(commandContainer, secrets)
+
+		keySlice := make([]string, 0)
+		for _, env := range commandContainer.Env {
+			keySlice = append(keySlice, env.Name)
+		}
+		keys := strings.Join(keySlice, " ")
+		commandContainer.AddEnv("ENV_KEYS", keys)
+
 		addJobContainer(j, commandContainer)
+	}
+
+	if stage.Artifacts != nil && len(stage.Artifacts) > 0 {
+		j.AddAnnotations("kontinuous_artifacts", strings.Join(stage.Artifacts, " "))
 	}
 
 }
@@ -168,7 +176,7 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 	}
 
 	for stageEnvKey, stageEnvValue := range stage.Params {
-		envVar[strings.ToUpper(stageEnvKey)] = stageEnvValue.(string)
+		envVar[strings.ToUpper(stageEnvKey)] = fmt.Sprintf("%v", stageEnvValue)
 	}
 
 	setContainerEnv(container, envVar)
@@ -177,9 +185,15 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 
 func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container {
 
-	containerName := fmt.Sprintf("%s-%s", jobInfo.PipelineUUID, jobInfo.Build)
-	imageName := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), containerName, jobInfo.Commit)
+	containerName := "command-agent"
+	cmdImageName := fmt.Sprintf("%s-%s-%s", jobInfo.PipelineUUID, jobInfo.Build, jobInfo.Stage)
+	cmdImage := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), cmdImageName, jobInfo.Commit)
+	imageName := "quay.io/acaleph/command-agent:latest"
 	container := createJobContainer(containerName, imageName)
+	container.Image = imageName
+	container.AddEnv("IMAGE", cmdImage)
+	container.WorkingDir = fmt.Sprintf("/kontinuous/src")
+	container.AddEnv("WORKING_DIR", fmt.Sprintf("/kontinuous/src/%s/%s/%s", jobInfo.PipelineUUID, jobInfo.Build, jobInfo.Stage))
 
 	for paramKey, paramValue := range stage.Params {
 
@@ -190,7 +204,7 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 			for i, c := range commands {
 				stringCommand[i] = c.(string)
 			}
-			container.SetCommand(stringCommand...)
+			container.AddEnv("COMMAND", strings.Join(stringCommand, " "))
 		case "ARGS":
 			args := paramValue.([]interface{})
 			stringArg := make([]string, len(args))
@@ -199,15 +213,47 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 			}
 			container.SetArgs(stringArg...)
 		case "IMAGE":
-			container.Image = paramValue.(string)
+			container.AddEnv("IMAGE", paramValue.(string))
+		case "WORKING_DIR":
+			container.WorkingDir = paramValue.(string)
+			container.AddEnv("WORKING_DIR", paramValue.(string))
+		case "DEPENDENCIES":
+			dependencies := paramValue.([]interface{})
+			stringDep := make([]string, len(dependencies))
+			for i, d := range dependencies {
+				stringDep[i] = d.(string)
+			}
+			container.AddEnv("DEPENDENCIES", strings.Join(stringDep, " "))
+		default:
+			container.AddEnv(strings.ToUpper(paramKey), fmt.Sprintf("%v", paramValue))
 		}
 	}
+
+	envVars := map[string]string{
+		"INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
+		"PIPELINE_ID":       jobInfo.PipelineUUID,
+		"BUILD_ID":          jobInfo.Build,
+		"STAGE_ID":          jobInfo.Stage,
+		"COMMIT":            jobInfo.Commit,
+		"BRANCH":            jobInfo.Branch,
+		"NAMESPACE":         stage.Namespace,
+	}
+
+	setContainerEnv(container, envVars)
+
+	keySlice := make([]string, 0)
+	for _, env := range container.Env {
+		keySlice = append(keySlice, env.Name)
+	}
+	keys := strings.Join(keySlice, " ")
+	container.AddEnv("ENV_KEYS", keys)
+
 	return container
 }
 
 func deployJob(j *kube.Job) error {
-	jobClient, _ := kube.NewClient("https://kubernetes.default")
-	return jobClient.CreateJob(j)
+	kubeClient, _ := kube.NewClient("https://kubernetes.default")
+	return kubeClient.CreateJob(j)
 }
 
 func setContainerEnv(container *kube.Container, envVars map[string]string) {
@@ -227,16 +273,11 @@ func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
 			logrus.Printf("Unable to get secret %s", secret)
 			continue
 		}
-		logrus.Printf("Secret retrieved %s", secretEnv)
 		for key, value := range secretEnv {
-			secrets[key] = value
+			secrets[key] = strings.TrimSpace(value)
 		}
 	}
 	return secrets
-}
-
-func getArtifacts(stage *Stage) string {
-	return fmt.Sprintf("{%s}", strings.Join(stage.Artifacts, ","))
 }
 
 func createJobContainer(name string, image string) *kube.Container {
@@ -257,4 +298,8 @@ func getNamespace(definition *Definition) string {
 		return "default"
 	}
 	return definition.Metadata["namespace"].(string)
+}
+
+func deployToK8s(deployFile string) {
+
 }
