@@ -106,7 +106,7 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 		metadata := out["metadata"]
 		namespace := "default"
 		if metadata != nil {
-			namespace = metadata.(map[interface{}]interface{})["namespace"].(string)
+			namespace = metadata.(map[string]interface{})["namespace"].(string)
 		}
 
 		// endpoint is /api/v1/namespaces/{namespace}/{resourceType}
