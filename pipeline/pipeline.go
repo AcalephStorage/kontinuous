@@ -14,6 +14,7 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/dgrijalva/jwt-go"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 )
@@ -57,8 +58,9 @@ type (
 	}
 
 	Notifier struct {
-		Type     string                 `json:"type"`
-		Metadata map[string]interface{} `json:"metadata"`
+		Type      string                 `json:"type"`
+		Metadata  map[string]interface{} `json:"metadata, omitempty"`
+		Namespace string                 `json:"-"`
 	}
 )
 
@@ -73,7 +75,8 @@ type Pipeline struct {
 	Keys      Key         `json:"-"`
 	Login     string      `json:"login"`
 	Source    string      `json:"-"`
-	Notifiers []*Notifier `json:"notif"`
+	Notifiers []*Notifier `json:"notif,omitempty"`
+	Secrets   []string    `json:"secrets,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -196,7 +199,8 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	keys.Private, _ = kvClient.Get(path + "/keys/private")
 	p.Keys = keys
 	p.Name = p.fullName()
-
+	secrets, _ := kvClient.Get(path + "/secrets")
+	p.Secrets = strings.Split(secrets, ",")
 	pipelineNotifiers := []*Notifier{}
 	notifiers, _ := kvClient.GetDir(path + "/notif")
 	for _, notifier := range notifiers {
@@ -248,6 +252,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	p.Name = p.fullName()
 	path := pipelineNamespace + p.Name
 	events := strings.Join(p.Events, ",")
+	pipelineSecrets := strings.Join(p.Secrets, ",")
 	isNew := false
 
 	_, err = kvClient.GetDir(path)
@@ -279,6 +284,9 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(path+"/source", p.Source); err != nil {
 		return handleSaveError(path, isNew, err, kvClient)
 	}
+	if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
+		return handleSaveError(path, isNew, err, kvClient)
+	}
 
 	if p.Notifiers != nil && len(p.Notifiers) > 0 {
 		if err = kvClient.PutDir(path + "/notif"); err != nil {
@@ -286,20 +294,44 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 		}
 	}
 
+	var secrets map[string]string
+
 	for _, notifier := range p.Notifiers {
 		notifTypePath := fmt.Sprintf("%s/notif/%s", path, notifier.Type)
+		secrets = getNotifSecret(p.Secrets, notifier.Namespace)
+
 		if err = kvClient.PutDir(notifTypePath); err != nil {
 			return handleSaveError(path, isNew, err, kvClient)
 		}
 
 		for key, value := range notifier.Metadata {
 			notifpath := fmt.Sprintf("%s/%s", notifTypePath, key)
-			if err = kvClient.Put(notifpath, value.(string)); err != nil {
+			notifValue := value.(string)
+			if secrets != nil {
+				notifValue = secrets[notifValue]
+			}
+			if err = kvClient.Put(notifpath, notifValue); err != nil {
 				return handleSaveError(notifpath, isNew, err, kvClient)
 			}
 		}
 	}
 	return nil
+}
+
+func getNotifSecret(pipelineSecrets []string, namespace string) map[string]string {
+	secrets := make(map[string]string)
+
+	for _, secretName := range pipelineSecrets {
+		kubeClient, _ := kube.NewClient("https://kubernetes.default")
+		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
+		if err != nil {
+			continue
+		}
+		for key, value := range secretEnv {
+			secrets[key] = strings.TrimSpace(value)
+		}
+	}
+	return secrets
 }
 
 // Validate checks if the required values for a pipeline are present
@@ -460,4 +492,24 @@ func (p *Pipeline) generateKeys() error {
 	}
 
 	return nil
+}
+
+func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
+
+	pipelineNotifiers := []*Notifier{}
+
+	for _, notifier := range definition.Spec.Template.Notifiers {
+		namespace := "default"
+		if definition.Metadata["namespace"] != "" {
+			namespace = definition.Metadata["namespace"].(string)
+		}
+		notifier.Namespace = namespace
+		pipelineNotifiers = append(pipelineNotifiers, notifier)
+	}
+
+	p.Notifiers = pipelineNotifiers
+	if p.Notifiers != nil {
+		p.Save(kvClient)
+	}
+
 }

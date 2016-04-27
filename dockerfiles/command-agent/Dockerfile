@@ -13,6 +13,7 @@ RUN apt-get update && \
     chmod +x /usr/bin/kubectl
 
 ADD kube-config.yml /root/.kube/config
+ADD pod_template.yml /root/pod_template.yml
 ADD run.sh /usr/bin/command-agent
 RUN chmod +x /usr/bin/command-agent
 

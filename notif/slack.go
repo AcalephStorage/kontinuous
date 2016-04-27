@@ -43,7 +43,7 @@ func newSlackNotifier() *Slack {
 }
 
 func (slack *Slack) updateMessageStatus(status, repo string, build int) {
-	title := "*KONTINOUS* _Status_ "
+	title := "*KONTINUOUS* _Status_ "
 	buildInfo := fmt.Sprintf("Build #%d", build)
 
 	var msg string

@@ -79,6 +79,14 @@ func (j *Job) AddLabels(name, value string) {
 	j.Metadata["labels"].(map[string]string)[name] = value
 }
 
+// AddAnnotations adds annotations to the job
+func (j *Job) AddAnnotations(name, value string) {
+	if _, ok := j.Metadata["annotations"]; !ok {
+		j.Metadata["annotations"] = make(map[string]string)
+	}
+	j.Metadata["annotations"].(map[string]string)[name] = value
+}
+
 // AddSelectorMatchLabel adds key=value labels to the selector and the job metadata
 func (j *Job) AddSelectorMatchLabel(name, value string) {
 	selector := j.Spec.Selector.MatchLabels
@@ -158,6 +166,7 @@ type Container struct {
 	Name            string           `json:"name,omitempty"`
 	Image           string           `json:"image,omitempty"`
 	ImagePullPolicy string           `json:"imagePullPolicy,omitempty"`
+	WorkingDir      string           `json:"workingDir,omitempty"`
 	Command         []string         `json:"command,omitempty"`
 	Args            []string         `json:"args,omitempty"`
 	Ports           []*ContainerPort `json:"ports,omitempty"`

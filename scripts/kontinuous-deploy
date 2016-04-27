@@ -1,0 +1,447 @@
+#!/usr/bin/env bash
+
+KONTINUOUS_SPECS_FILE=/tmp/kontinuous-specs.yml
+KONTINUOUS_RC_SPEC_FILE=/tmp/kontinuous-rc-spec.yml
+
+read -r -d '' SECRET_DATA_TEMPLATE << \
+"-----TEMPLATE-----"
+{
+  "AuthSecret": "auth_secret",
+  "S3SecretKey": "s3_secret_key",
+  "S3AccessKey": "s3_access_key"
+}
+-----TEMPLATE-----
+
+read -r -d '' SECRET_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: kontinuous-secrets
+  namespace: namespace-data
+data:
+  kontinuous-secrets: secret-data
+-----TEMPLATE-----
+
+read -r -d '' ETCD_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: etcd
+  namespace: namespace-data
+  labels:
+    app: etcd
+    type: kv
+spec:
+  selector:
+    app: etcd
+    type: kv
+  ports:
+    - name: api
+      port: 2379
+      targetPort: 2379
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: etcd
+  namespace: namespace-data
+  labels:
+    app: etcd
+    type: kv
+spec:
+  replicas: 1
+  selector:
+    app: etcd
+    type: kv
+  template:
+    metadata:
+      labels:
+        app: etcd
+        type: kv
+    spec:
+      containers:
+        - name: etcd
+          image: quay.io/coreos/etcd:v2.2.2
+          imagePullPolicy: Always
+          args:
+            - --listen-client-urls
+            - http://0.0.0.0:2379
+            - --advertise-client-urls
+            - http://0.0.0.0:2379
+          ports:
+            - name: api
+              containerPort: 2379
+-----TEMPLATE-----
+
+
+read -r -d '' MINIO_SPEC_TEMPLATE << \
+"-----TEMPLATE-----"
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: minio
+  namespace: namespace-data
+  labels:
+    app: minio
+    type: object-store
+spec:
+  selector:
+    app: minio
+    type: object-store
+  ports:
+    - name: service
+      port: 9000
+      targetPort: 9000
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: minio
+  namespace: namespace-data
+  labels:
+    app: minio
+    type: object-store
+spec:
+  replicas: 1
+  selector:
+    app: minio
+    type: object-store
+  template:
+    metadata:
+      name: minio
+      labels:
+        app: minio
+        type: object-store
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          imagePullPolicy: Always
+          env:
+            - name: MINIO_ACCESS_KEY
+              value: access-key-data
+            - name: MINIO_SECRET_KEY
+              value: secret-key-data
+          ports:
+            - name: service
+              containerPort: 9000
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            timeoutSeconds: 1
+-----TEMPLATE-----
+
+read -r -d '' REGISTRY_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: registry
+  namespace: namespace-data
+  labels:
+    app: registry
+    type: storage
+spec:
+  selector:
+    app: registry
+    type: storage
+  ports:
+    - name: service
+      port: 5000
+      targetPort: 5000
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: registry
+  namespace: namespace-data
+  labels:
+    app: registry
+    type: storage
+spec:
+  replicas: 1
+  selector:
+    app: registry
+    type: storage
+  template:
+    metadata:
+      name: registry
+      namespace: acaleph
+      labels:
+        app: registry
+        type: storage
+    spec:
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - name: service
+              containerPort: 5000
+-----TEMPLATE-----
+
+read -r -d '' KONTINUOUS_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: kontinuous
+  namespace: namespace-data
+  labels:
+    app: kontinuous
+    type: ci-cd
+spec:
+  type: LoadBalancer
+  selector:
+    app: kontinuous
+    type: ci-cd
+  ports:
+    - name: api
+      port: 8080
+      targetPort: 3005
+-----TEMPLATE-----
+
+read -r -d '' KONTINUOUS_RC_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: kontinuous
+  namespace: namespace-data
+  labels:
+    app: kontinuous
+    type: ci-cd
+spec:
+  replicas: 1
+  selector:
+    app: kontinuous
+    type: ci-cd
+  template:
+    metadata:
+      labels:
+        app: kontinuous
+        type: ci-cd
+    spec:
+      volumes:
+        - name: kontinuous-secrets
+          secret:
+            secretName: kontinuous-secrets
+      containers:
+        - name: kontinuous
+          image: quay.io/acaleph/kontinuous:latest
+          imagePullPolicy: Always
+          env:
+            - name: KV_ADDRESS
+              value: etcd:2379
+            - name: S3_URL
+              value: http://minio:9000
+            - name: KONTINUOUS_URL
+              value: http://kontinuous-ip:8080
+            - name: INTERNAL_REGISTRY
+              value: registry:5000
+          ports:
+            - name: api
+              containerPort: 3005
+          volumeMounts:
+            - mountPath: /.secret
+              name: kontinuous-secrets
+              readOnly: true
+-----TEMPLATE-----
+
+read -r -d '' HELP_MESSAGE << \
+'-----HELP-----'
+-----------------
+kontinuous-deploy
+-----------------
+
+Syntax:
+  kontinuous-deploy --help
+  kontinuous-deploy ... create options
+  kontinuous-deploy --delete
+
+Options:
+  --help              show this help message
+  
+  --namespace         k8s namespace to deploy kontinuous
+  --auth-secret       base64 encoded auth secret to be used for JWT authentication
+  --s3-access-key     s3 access key
+  --s3-secret-key     s3 secret key
+  
+  --delete            delete create k8s resources
+-----HELP-----
+
+
+function show_help() {
+  echo
+  echo "$HELP_MESSAGE"
+  echo 
+  exit $1
+}
+
+function create_secret_data() {
+  local auth_secret="$1"; shift
+  local s3_access_key="$1"; shift
+  local s3_secret_key="$1"; shift
+
+  local secret_data="${SECRET_DATA_TEMPLATE/auth_secret/$auth_secret}"
+  secret_data="${secret_data/s3_secret_key/$s3_secret_key}"
+  secret_data="${secret_data/s3_access_key/$s3_access_key}"
+
+  secret_data=$(echo -n "$secret_data" | openssl base64 | tr -d '\n')
+
+  echo "$secret_data"
+}
+
+function create_kontinuous_secret_entry() {
+  local namespace="$1"; shift
+  local secret_data="$1"; shift
+
+  local secret_spec="${SECRET_SPEC_TEMPLATE/namespace-data/$namespace}"
+  secret_spec="${secret_spec/secret-data/$secret_data}"
+
+  echo "$secret_spec" > $KONTINUOUS_SPECS_FILE
+}
+
+function create_etcd_spec() {
+  local namespace="$1"; shift
+
+  local etcd_spec="${ETCD_SPEC_TEMPLATE/namespace-data/$namespace}"
+  etcd_spec="${etcd_spec/namespace-data/$namespace}"
+
+  echo "$etcd_spec" >> $KONTINUOUS_SPECS_FILE
+}
+
+function create_minio_spec() {
+  local namespace="$1"; shift
+  local s3_access_key="$1"; shift
+  local s3_secret_key="$1"; shift
+
+  local minio_spec="${MINIO_SPEC_TEMPLATE/namespace-data/$namespace}"
+  minio_spec="${minio_spec/namespace-data/$namespace}"
+  minio_spec="${minio_spec/access-key-data/$s3_access_key}"
+  minio_spec="${minio_spec/secret-key-data/$s3_secret_key}"
+
+  echo "$minio_spec" >> $KONTINUOUS_SPECS_FILE
+}
+
+function create_registry_spec() {
+  local namespace="$1"; shift
+
+  local registry_spec="${REGISTRY_SPEC_TEMPLATE/namespace-data/$namespace}"
+  registry_spec="${registry_spec/namespace-data/$namespace}"
+
+  echo "$registry_spec" >> $KONTINUOUS_SPECS_FILE
+}
+
+function create_kontinuous_spec() {
+  local namespace="$1"; shift
+
+  local kontinuous_spec="${KONTINUOUS_SPEC_TEMPLATE/namespace-data/$namespace}"
+
+  echo "$kontinuous_spec" >> $KONTINUOUS_SPECS_FILE
+}
+
+function create_kontinuous_resources() {
+  kubectl create -f $KONTINUOUS_SPECS_FILE
+}
+
+function create_kontinuous_rc_spec() {
+  local namespace="$1"; shift
+  local kontinuous_ip="$1"; shift
+
+  local kontinuous_spec="${KONTINUOUS_RC_SPEC_TEMPLATE/namespace-data/$namespace}"
+  kontinuous_spec="${kontinuous_spec/kontinuous-ip/$kontinuous_ip}"
+
+  echo "$kontinuous_spec" > $KONTINUOUS_RC_SPEC_FILE
+}
+
+function fetch_kontinuous_ip() {
+  local namespace="$1"; shift
+
+  local ip='<none>'
+  while [[ "$ip" == '<no value>' || "$ip" == '<none>' ]]; do
+    data=$(kubectl get svc kontinuous --namespace="$namespace" -o template --template="{{.status.loadBalancer.ingress}}")
+    if [[ "$data" != '<no value>' && "$data" != '<none>' ]]; then
+      ip=${data/[map[ip:/}
+      ip=${ip/]]/}
+    else
+      sleep 5
+    fi
+  done
+
+  echo "$ip"
+}
+
+function create_kontinuous_rc_resource() {
+  kubectl create -f $KONTINUOUS_RC_SPEC_FILE
+}
+
+function remove_resources() {
+  kubectl delete -f $KONTINUOUS_SPECS_FILE
+  kubectl delete -f $KONTINUOUS_RC_SPEC_FILE
+}
+
+function main() {
+
+  # get args
+  while [[ $# > 0 ]]; do
+    key="$1"
+    case $key in
+      # k8s details
+      --namespace)
+        local namespace="$2"
+        shift
+        ;;
+
+      # secrets
+      --auth-secret)
+        local auth_secret="$2"
+        shift
+        ;;
+      --s3-access-key)
+        local s3_access_key="$2"
+        shift
+        ;;
+      --s3-secret-key)
+        local s3_secret_key="$2"
+        shift
+        ;;
+
+      --delete)
+        remove_resources
+        ;;
+
+      --help)
+        show_help 0
+        ;;
+      *)
+        show_help 1
+        ;;
+    esac
+    shift
+  done  
+
+  local secret_data=$(create_secret_data "$auth_secret" "$s3_access_key" "$s3_secret_key")
+  create_kontinuous_secret_entry "$namespace" "$secret_data"
+
+  create_etcd_spec "$namespace"
+  create_minio_spec "$namespace" "$s3_access_key" "$s3_secret_key"
+  create_registry_spec "$namespace"
+  create_kontinuous_spec "$namespace"
+  # create_kontinuous_resources
+
+  echo 'Waiting for Kontinuous IP...'
+  local kontinuous_ip=$(fetch_kontinuous_ip "$namespace")
+  create_kontinuous_rc_spec "$namespace" "$kontinuous_ip"
+  create_kontinuous_rc_resource
+}
+
+main $@
+

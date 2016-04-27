@@ -23,6 +23,12 @@ spec:
       name: awesome-webapp
       labels:
         app: awesome-webapp
+    notif:
+      - type: slack
+        metadata: 
+          url: slackurl
+          password: slackpassword
+          email: slackemail    
     stages:
       - name: Build Image
         type: docker_build
@@ -79,9 +85,7 @@ spec:
           username: acaleph
           password: ...
           email: ...
-        secrets:
-          - secrets
-          - secrets2
+
  `
 
 	validJobBuildInfo = `{

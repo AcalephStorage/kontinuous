@@ -1,9 +1,44 @@
-KONTINUOUS
+![Kontinuous](docs/logo/logo-small.png)
+
+Kontinuous - The Kubernetes Continuous Integration & Delivery Platform
 ==========
 
-Kontinuous is a Continuous Integration & Delivery pipeline tool built specifically for Kubernetes. It aims to provide a platform for building applications using native Kubernetes Jobs and Pods. 
+Are you sick of having to deal with Jenkins and its plugins? Getting a headache from trying to get your builds working in Kubernetes? *Kontinuous is here to save the day!*
+
+Kontinuous is a Continuous Integration & Delivery pipeline tool built specifically for Kubernetes. It aims to provide a platform for building and deploying applications using native Kubernetes Jobs and Pods.
+
+> This is a **Work In Progress** designed to gather feedback from the community so has fairly basic functionality. Please file Issues (or better yet PRs!) so we can build the :ok_hand: CI/CD platform for K8s
+
+
+## Features
+
+Kontinuous currently offers the following features:
+
+ - A simple Kubernetes-like spec for declaring delivery pipelines
+ - Flexible stages - Command execution, Docker builds and publishing to local or remote registries
+ - Integration with Github for builds and status
+ - Slack notifications
+ - A CLI tool for querying pipelines, build status and logs
+
+We've got lots more planned, see the [Roadmap](#roadmap) or Github issues to get in on the action!
 
 ## Running Kontinuous
+
+### Getting Started
+
+The script `scripts/kontinuous-deploy` is a quick way of running `kontinuous` in a K8s cluster. The general syntax is:
+
+```
+$ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded secret} --s3-access-key {s3 access key} --s3-secret-key {s3 secret key}
+```
+
+This will launch `kontinuous` via the locally configured `kubectl` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports the LoadBalancer service.
+
+Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See [below](#running-in-kubernetes) for how to configure secrets.
+
+Once running, add a [.pipeline.yml](#pipeline-spec) to the root of your Github repo and configure the webhooks.
+
+The [CLI client](#clients) or [API](#api) can be used to view build status or logs.
 
 ### Dependencies
 
@@ -11,7 +46,7 @@ Running kontinuous requires the following to be setup:
 
  - **etcd**
  
- 	`etcd` is used as a backend for storing pipeline and build details. This is a dedicated instance to avoid issues with the Kubernetes etcd cluster.
+ 	`etcd` is used as a backend for storing pipeline and build details. This is a dedicated instance to avoid poluting with the Kubernetes etcd cluster.
  	
  - **minio**
 
@@ -19,13 +54,18 @@ Running kontinuous requires the following to be setup:
 	
 - **docker registry**
 
-	`registry` is used to store internal docker images. 
+	`registry` is used to store internal docker images.
+	
+- **kubernetes**
+
+	Kontinuous uses Kubernetes Jobs heavily so will require at least version 1.1 with Jobs enabled
+
 
 ### Running in Kubernetes
 
-Kontinuous is meant to run inside a kubernetes cluster, preferrably by a Replication Controller.
+Kontinuous is meant to run inside a kubernetes cluster, preferrably by a Deployment or Replication Controller.
 
-The docker image can be found here: [quay.io/acaleph/kontinuous](quay.io/acaleph/kontinuous)
+The docker image can be found here: [quay.io/acaleph/kontinuous](https://quay.io/acaleph/kontinuous)
 
 The following environment variables needs to be defined:
 
@@ -51,8 +91,6 @@ A Kubernetes Secret also needs to be defined and mounted to the Pod. The secret 
 `S3SecretKey` and `S3AccessKey` are the keys needed to access minio (or S3).
 
 The secret needs to be mounted to the Pod to the path `/.secret`.
-
-A sample yaml file for running kontinuous can be found [here](./k8s-spec.yml.example).
 
 ## Using Kontinuous
 
@@ -82,6 +120,15 @@ spec:
       labels:
         app: kontinuous
         type: ci-cd
+    notif:
+      - type: slack
+        metadata:
+          url: slackurl             #taken from secret
+          username: slackuser       #taken from secret  
+          channel: slackchannel     #taken from secret
+    secrets:
+      - notifcreds
+      - docker-credentials
     stages:
       - name: Build Docker Image
         type: docker_build
@@ -100,8 +147,6 @@ spec:
           username: user        # taken from secret
           password: password    # taken from secret
           email: email          # taken from secret
-        secrets:
-          - docker-credentials
 ```
 
 The format is something similar to K8s Specs. Here are more details on some of the fields:
@@ -117,24 +162,38 @@ name: Friendly name
 type: {docker_build,command,docker_publish}
 params:
   key: value
-secrets:
-  - secret-name
 ```
 
-- `type` can be: `docker_build`, `docker_publish`, or `command`.
+- `type` can be: `docker_build`, `docker_publish`, `command`, or `deploy`.
 - `params` is a map of parameters to be loaded as environment variables. 
-- `secrets` is a list of secrets that will be used as values for `params`.
+
+#### Notification
+
+- `type` can be: `slack`. 
+- `metadata` is a map of values needed for a certain notification type. The metadata value should be a **key** from one of the secrets file defined
+
+ `metadata` of notification `type=slack` has the following keys:
+ 
+  - `url` is a slack incoming messages webhook url.
+  - `channel` is optional. If set, it will override default channel
+  - `username` is optional. If set, it will override default username
+ 	
+In the future releases, kontinuous notification will support other notification services. e.g. email, hipchat, etc.
+
+### Secrets
+
+- `secrets` is a list of secrets that will be used as values for stages and notification.
 
 #### Stages
 
-`docker_build` can work without additional params. By default, it uses the `Dockerfile` inside  the repository root. Optional params are:
+`docker_build` builds a Docker Image and pushes the images to a internal registry. It can work without additional params. By default, it uses the `Dockerfile` inside  the repository root. Optional params are:
 
  - `dockerfile_path` - the path where the Dockerfile is located
  - `dockerfile_name` - the file name of the Dockerfile
 
 After a build, the image is stored inside the internal docker registry.
 
-`docker_publish` requires the following params:
+`docker_publish` pushes the previously build Docker image to an external registry. It requires the following params:
 
  - `external_registry` - the external registry name (eg. quay.io)
  - `external_image_name` - the name of the image (eg. acaleph/kontinuous)
@@ -142,9 +201,14 @@ After a build, the image is stored inside the internal docker registry.
 Optional params:
 
  - `require_crendentials` - defaults to `false`. Set to `true` if registry requires authentication
- - `username` - the username. this should be a key from one of the secrets file defined
- - `password` - the password. this should be a key from one of the secrets file defined
- - `email` - the email. this should be a key from one of the secrets file 
+
+Required secrets:
+
+ - `dockeruser`
+ - `dockerpass`
+ - `dockeremail`
+
+	These secrets needs to be defined in at least one of the secrets provided. 
 
 The image that will be pushed is the image that was previously built. This does not work for now if no image was created. 
 
@@ -154,6 +218,9 @@ Optional params are:
 
  - `args` - a list of string to serve as the arguments for the command
  - `image` - the image to run the commands in. If not specified, the previous built image will be used.
+ - `dependencies` - a list of Kubernetes spec files to run as dependencies for running the command. Useful when running integration tests.
+
+`deploy` deploys a Kubernetes Spec file (yaml) to kubernetes. 
 
 
 ### Authentication
@@ -173,52 +240,27 @@ Make sure to enable access to the following:
 
 #### JSON Web Token
 
-Kontinuous uses JWT for authentication. To create a token, the `AuthSecret` (from kontinuous-secret) and the github token is required. One way of generating the token is using [jwt.io](https://jwt.io).
-
-The header should be:
+The script `scripts/jwt-gen` can generate a JSON Web Token to be used for authentication with Kontinuous. 
 
 ```
-{
-  "alg": "HS256",
-  "typ": "JWT"
-}
-```
+$ scripts/jwt-gen --secret {base64url encoded secret} --github-token {github-token}
+``` 
 
-Payload:
+This generates a JSON Web Token and can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
 
-```
-{
-  "identities": [
-    {
-      "access_token": "github token"
-    }
-  ]
-}
-```
-
-and Signature:
-
-```
-HMACSHA256(
-  base64UrlEncode(header) + "." +
-  base64UrlEncode(payload),  
-  AuthSecret
-)
-
-[x]secret base64 encoded
-```
-
-Once a token is generated, this can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
+The generated token's validity can be verified at [jwt.io](https://jwt.io).
 
 ## API
 
-kontinuous is accessible from it's API. The API can be available via swagger.
+kontinuous is accessible from it's API and docs can be viewed via Swagger.
 
 The API doc can be accessed via `{kontinuous-address}/apidocs`
 
 ## Clients
 
-At the moment, there is only a cli client (here)[https://github.com/AcalephStorage/kontinuous/tree/develop/cli].
+At the moment, there is a basic cli client binary [here](https://github.com/AcalephStorage/kontinuous/releases) and code available [here](https://github.com/AcalephStorage/kontinuous/tree/develop/cli).
+
+A Web based Dashboard is under development.
 
 ## Development
 
@@ -234,6 +276,11 @@ Build the docker image:
 $ docker build -t {tag} .
 ```
 
-## Notes
+## Roadmap
 
-This is a Work In Progress designed to gather feedback from the community and has very basic functionality. Please file Issues (or better yet PRs!) so we can build the :ok_hand: CI/CD platform for K8s
+- [ ] More stage types - wait/approvals, vulnerability/security testing, container slimming, load testing, deploy tools (Helm, DM, KPM, etc)
+- [ ] Full stack tests - Spin up full environments for testing
+- [ ] Advanced branch testing - Review/Sandbox environments
+- [ ] Metrics - Compare build performance
+- [ ] Notification service integration - Email, hipchat, etc
+- [ ] Web based management Dashboard
