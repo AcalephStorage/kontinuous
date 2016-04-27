@@ -87,17 +87,13 @@ func (a *AuthResource) authorize(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	token := jwt.New(jwt.SigningMethodHS256)
-	token.Claims["identities"] = []map[string]string{
-		{"access_token": accessToken},
-	}
-
-	jwtToken, err := token.SignedString(dsecret)
+	jwtToken, err := CreateJWT(accessToken, string(dsecret))
 
 	if err != nil {
-		jsonError(res, http.StatusInternalServerError, err, "Unable to authorize user")
+		jsonError(res, http.StatusInternalServerError, err, "Unable to create jwt for user")
 		return
 	}
+
 	res.WriteHeader(http.StatusCreated)
 	res.Write([]byte(jwtToken))
 }

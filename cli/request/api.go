@@ -8,14 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
+	"github.com/AcalephStorage/kontinuous/api"
 	scm "github.com/AcalephStorage/kontinuous/scm"
 	"github.com/Sirupsen/logrus"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/spf13/viper"
 )
 
@@ -65,10 +64,6 @@ type (
 		JobName   string `json:"job_name"`
 		Namespace string `json:"namespace"`
 		PodName   string `json:"pod_name"`
-	}
-
-	GithubUser struct {
-		ID int `json:"id"`
 	}
 )
 
@@ -177,18 +172,8 @@ func (c *Config) GetStages(client *http.Client, owner, repo string, buildNumber 
 	return list, nil
 }
 
-func (c *Config) GetUser(client *http.Client) (*GithubUser, error) {
-	body, err := c.sendGithubRequest(client, "GET", "/user", nil)
-	user := &GithubUser{}
-	err = json.Unmarshal(body, user)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
 func (c *Config) CreatePipeline(client *http.Client, pipeline *PipelineData) error {
-	user, err := c.GetUser(client)
+	user, err := api.GetGithubUser(c.Token)
 	if err != nil {
 		return err
 	}
@@ -203,7 +188,7 @@ func (c *Config) CreatePipeline(client *http.Client, pipeline *PipelineData) err
 }
 
 func (c *Config) CreateBuild(client *http.Client, owner, repo string) error {
-	user, err := c.GetUser(client)
+	user, err := api.GetGithubUser(c.Token)
 	if err != nil {
 		return err
 	}
@@ -241,7 +226,7 @@ func (c *Config) sendAPIRequest(client *http.Client, method, endpoint string, da
 		return nil, err
 	}
 
-	jwtToken, err := createJWT(c.Token, c.Secret)
+	jwtToken, err := api.CreateJWT(c.Token, c.Secret)
 	if err != nil {
 		return nil, err
 	}
@@ -269,54 +254,4 @@ func (c *Config) sendAPIRequest(client *http.Client, method, endpoint string, da
 	}
 
 	return body, nil
-}
-
-func (c *Config) sendGithubRequest(client *http.Client, method, endpoint string, data []byte) ([]byte, error) {
-	url := "https://api.github.com" + endpoint
-	req, err := http.NewRequest(method, url, bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-
-	authReqToken := "token " + c.Token
-	req.Header.Add("Authorization", authReqToken)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 500 {
-		apiError := &Error{}
-		err = json.Unmarshal(body, apiError)
-		if err != nil {
-			return nil, errors.New(resp.Status)
-		}
-		return nil, errors.New(apiError.Message)
-	}
-
-	return body, nil
-}
-
-func createJWT(accessToken string, secret string) (string, error) {
-	if accessToken == "" {
-		return "", errors.New("Access Token is empty")
-	}
-
-	token := jwt.New(jwt.SigningMethodHS256)
-	token.Claims["identities"] = []map[string]string{
-		{"access_token": accessToken},
-	}
-
-	s, _ := base64.URLEncoding.DecodeString(secret)
-	jwtToken, err := token.SignedString(s)
-	if err != nil {
-		logrus.WithError(err).Errorln("Unable to Create JWT")
-		return "", errors.New("Unable to Create JWT")
-	}
-
-	return jwtToken, nil
 }
