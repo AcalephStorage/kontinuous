@@ -462,7 +462,7 @@ func (p *Pipeline) generateKeys() error {
 	return nil
 }
 
-func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
+func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) {
 
 	pipelineNotifiers := []*Notifier{}
 
@@ -476,8 +476,7 @@ func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
 	}
 
 	p.Notifiers = pipelineNotifiers
-	if p.Notifiers != nil {
-		p.Save(kvClient)
-	}
+	p.Secrets = definition.Spec.Template.Secrets
+	p.Save(kvClient)
 
 }
