@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	etcd "github.com/coreos/etcd/client"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 )
@@ -169,11 +171,18 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 	var appNotifier notif.AppNotifier
 
 	//TODO: will add more notification engines
+
 	for _, notifier := range p.Notifiers {
 
 		switch notifier.Type {
 		case "slack":
 			appNotifier = &notif.Slack{}
+			metadata := make(map[string]interface{})
+			metadata["channel"] = "slackchannel"
+			metadata["url"] = "slackurl"
+			metadata["username"] = "username"
+			notifier.Metadata = b.getSecrets(p.Secrets, notifier.Namespace, metadata)
+
 		}
 
 		if appNotifier != nil {
@@ -185,6 +194,29 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 	}
 
 	return nil
+}
+
+func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata map[string]interface{}) map[string]interface{} {
+
+	secrets := make(map[string]string)
+
+	for _, secretName := range pipelineSecrets {
+		kubeClient, _ := kube.NewClient("https://kubernetes.default")
+		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
+		if err != nil {
+			continue
+		}
+		for key, value := range secretEnv {
+			secrets[key] = strings.TrimSpace(value)
+		}
+	}
+
+	for key, value := range metadata {
+		metadata[key] = secrets[value.(string)]
+	}
+
+	return metadata
+
 }
 
 func (b *Build) getStatus(kvClient kv.KVClient) []notif.StageStatus {

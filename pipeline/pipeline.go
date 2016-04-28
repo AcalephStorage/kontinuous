@@ -198,31 +198,21 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	p.Name = p.fullName()
 
 	pipelineNotifiers := []*Notifier{}
-	notifiers, _ := kvClient.GetDir(path + "/notif")
-	for _, notifier := range notifiers {
-		pipelineNotifier := &Notifier{}
+	notifiers, _ := kvClient.Get(path + "/notif/type")
 
-		notiftype := strings.Split(notifier.Key, "/")
-		pipelineNotifier.Type = notiftype[len(notiftype)-1]
-		notifierKeys, err := kvClient.GetDir(notifier.Key)
+	if len(notifiers) > 0 {
+		notifierType := strings.Split(notifiers, " ")
+		notifnamespace, _ := kvClient.Get(path + "/notif/namespace")
 
-		if err != nil {
-			break
+		for _, notifier := range notifierType {
+			pipelineNotifier := &Notifier{}
+			pipelineNotifier.Type = notifier
+			pipelineNotifier.Namespace = notifnamespace
+			pipelineNotifiers = append(pipelineNotifiers, pipelineNotifier)
 		}
-
-		metadata := make(map[string]interface{})
-		for _, nkey := range notifierKeys {
-			notifierValue, _ := kvClient.Get(nkey.Key)
-			metadataKeys := strings.Split(nkey.Key, "/")
-			key := metadataKeys[len(metadataKeys)-1]
-			metadata[key] = notifierValue
-		}
-		pipelineNotifier.Metadata = metadata
-		pipelineNotifiers = append(pipelineNotifiers, pipelineNotifier)
+		p.Notifiers = pipelineNotifiers
 	}
-	p.Notifiers = pipelineNotifiers
 	return p
-
 }
 
 // GenerateHookSecret generates the secret for web hooks used for hook authentication
@@ -284,6 +274,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 		if err = kvClient.PutDir(path + "/notif"); err != nil {
 			return handleSaveError(path, isNew, err, kvClient)
 		}
+<<<<<<< Updated upstream
 	}
 
 	for _, notifier := range p.Notifiers {
@@ -297,11 +288,32 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 			if err = kvClient.Put(notifpath, value.(string)); err != nil {
 				return handleSaveError(notifpath, isNew, err, kvClient)
 			}
+=======
+
+		notifTypePath := fmt.Sprintf("%s/notif", path)
+		types := make([]string, len(p.Notifiers))
+
+		for _, notifier := range p.Notifiers {
+			types = append(types, notifier.Type)
+		}
+
+		notifValue := strings.Join(types, " ")
+		if err = kvClient.Put(notifTypePath+"/type", notifValue); err != nil {
+			return handleSaveError(notifTypePath, isNew, err, kvClient)
+>>>>>>> Stashed changes
+		}
+
+<<<<<<< Updated upstream
+=======
+		if err = kvClient.Put(notifTypePath+"/namespace", p.Notifiers[0].Namespace); err != nil {
+			return handleSaveError(notifTypePath, isNew, err, kvClient)
 		}
 	}
+
 	return nil
 }
 
+>>>>>>> Stashed changes
 // Validate checks if the required values for a pipeline are present
 func (p *Pipeline) Validate() error {
 	if p.Owner == "" {
