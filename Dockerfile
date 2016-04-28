@@ -8,6 +8,7 @@ WORKDIR /go/src/github.com/AcalephStorage/kontinuous
 
 RUN mkdir /swagger && tar xvzf third_party/swagger.tar.gz -C /swagger
 
-RUN make
+# create and remove downloaded libraries
+RUN make && rm -rf /go/bin && rm -rf /go/lib
 
 ENTRYPOINT build/bin/kontinuous 

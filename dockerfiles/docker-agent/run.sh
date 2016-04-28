@@ -30,9 +30,9 @@ pull_internal() {
 push_external() {
 	echo "Pushing Image"
 
-	eval "local username=\$${USERNAME}"
-	eval "local password=\$${PASSWORD}"
-	eval "local email=\$${EMAIL}"
+	local username=${dockeruser}
+	local password=${dockerpassword}
+	local email=${dockeremail}
 
 	# credentials here? 
 	if [[ "$REQUIRE_CREDENTIALS" == "TRUE" ]]; then

@@ -3,7 +3,7 @@
 Kontinuous - The Kubernetes Continuous Integration & Delivery Platform
 ==========
 
-Are you sick of having to deal with Jenkins and its plugins? Getting a headache from trying to get your builds working in Kubernetes? *Kontinous is here to save the day!*
+Are you sick of having to deal with Jenkins and its plugins? Getting a headache from trying to get your builds working in Kubernetes? *Kontinuous is here to save the day!*
 
 Kontinuous is a Continuous Integration & Delivery pipeline tool built specifically for Kubernetes. It aims to provide a platform for building and deploying applications using native Kubernetes Jobs and Pods.
 
@@ -26,7 +26,19 @@ We've got lots more planned, see the [Roadmap](#roadmap) or Github issues to get
 
 ### Getting Started
 
-A sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See below for how to configure secrets.
+The script `scripts/kontinuous-deploy` is a quick way of running `kontinuous` in a K8s cluster. The general syntax is:
+
+```
+$ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded secret} --s3-access-key {s3 access key} --s3-secret-key {s3 secret key}
+```
+
+This will launch `kontinuous` via the locally configured `kubectl` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports the LoadBalancer service.
+
+Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See [below](#running-in-kubernetes) for how to configure secrets.
+
+Once running, add a [.pipeline.yml](#pipeline-spec) to the root of your Github repo and configure the webhooks.
+
+The [CLI client](#clients) or [API](#api) can be used to view build status or logs.
 
 ### Dependencies
 
@@ -108,6 +120,15 @@ spec:
       labels:
         app: kontinuous
         type: ci-cd
+    notif:
+      - type: slack
+        metadata:
+          url: slackurl             #taken from secret
+          username: slackuser       #taken from secret  
+          channel: slackchannel     #taken from secret
+    secrets:
+      - notifcreds
+      - docker-credentials
     stages:
       - name: Build Docker Image
         type: docker_build
@@ -126,8 +147,6 @@ spec:
           username: user        # taken from secret
           password: password    # taken from secret
           email: email          # taken from secret
-        secrets:
-          - docker-credentials
 ```
 
 The format is something similar to K8s Specs. Here are more details on some of the fields:
@@ -143,13 +162,27 @@ name: Friendly name
 type: {docker_build,command,docker_publish}
 params:
   key: value
-secrets:
-  - secret-name
 ```
 
-- `type` can be: `docker_build`, `docker_publish`, or `command`.
+- `type` can be: `docker_build`, `docker_publish`, `command`, or `deploy`.
 - `params` is a map of parameters to be loaded as environment variables. 
-- `secrets` is a list of secrets that will be used as values for `params`.
+
+#### Notification
+
+- `type` can be: `slack`. 
+- `metadata` is a map of values needed for a certain notification type. The metadata value should be a **key** from one of the secrets file defined
+
+ `metadata` of notification `type=slack` has the following keys:
+ 
+  - `url` is a slack incoming messages webhook url.
+  - `channel` is optional. If set, it will override default channel
+  - `username` is optional. If set, it will override default username
+ 	
+In the future releases, kontinuous notification will support other notification services. e.g. email, hipchat, etc.
+
+### Secrets
+
+- `secrets` is a list of secrets that will be used as values for stages and notification.
 
 #### Stages
 
@@ -168,9 +201,14 @@ After a build, the image is stored inside the internal docker registry.
 Optional params:
 
  - `require_crendentials` - defaults to `false`. Set to `true` if registry requires authentication
- - `username` - the username. This should be a **key** from one of the secrets file defined
- - `password` - the password. This should be a **key** from one of the secrets file defined
- - `email` - the email. This should be a **key** from one of the secrets file 
+
+Required secrets:
+
+ - `dockeruser`
+ - `dockerpass`
+ - `dockeremail`
+
+	These secrets needs to be defined in at least one of the secrets provided. 
 
 The image that will be pushed is the image that was previously built. This does not work for now if no image was created. 
 
@@ -180,6 +218,9 @@ Optional params are:
 
  - `args` - a list of string to serve as the arguments for the command
  - `image` - the image to run the commands in. If not specified, the previous built image will be used.
+ - `dependencies` - a list of Kubernetes spec files to run as dependencies for running the command. Useful when running integration tests.
+
+`deploy` deploys a Kubernetes Spec file (yaml) to kubernetes. 
 
 
 ### Authentication
@@ -199,54 +240,27 @@ Make sure to enable access to the following:
 
 #### JSON Web Token
 
-Kontinuous uses JWT for authentication. To create a token, the `AuthSecret` (from kontinuous-secret) and the github token is required. One way of generating the token is using [jwt.io](https://jwt.io).
-
-The header should be:
+The script `scripts/jwt-gen` can generate a JSON Web Token to be used for authentication with Kontinuous. 
 
 ```
-{
-  "alg": "HS256",
-  "typ": "JWT"
-}
-```
+$ scripts/jwt-gen --secret {base64url encoded secret} --github-token {github-token}
+``` 
 
-Payload:
+This generates a JSON Web Token and can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
 
-```
-{
-  "identities": [
-    {
-      "access_token": "github token"
-    }
-  ]
-}
-```
-
-and Signature:
-
-```
-HMACSHA256(
-  base64UrlEncode(header) + "." +
-  base64UrlEncode(payload),  
-  AuthSecret
-)
-
-[x]secret base64 encoded
-```
-
-Once a token is generated, this can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
-
-Alternatively the CLI Client can manage the token generation
+The generated token's validity can be verified at [jwt.io](https://jwt.io).
 
 ## API
 
-kontinuous is accessible from it's API. The API docs can be viewed via Swagger.
+kontinuous is accessible from it's API and docs can be viewed via Swagger.
 
 The API doc can be accessed via `{kontinuous-address}/apidocs`
 
 ## Clients
 
-At the moment, there is a basic cli client [here](https://github.com/AcalephStorage/kontinuous/tree/develop/cli). A Web based Dashboard is under development.
+At the moment, there is a basic cli client binary [here](https://github.com/AcalephStorage/kontinuous/releases) and code available [here](https://github.com/AcalephStorage/kontinuous/tree/develop/cli).
+
+A Web based Dashboard is under development.
 
 ## Development
 

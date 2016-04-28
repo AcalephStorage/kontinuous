@@ -1,0 +1,33 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: __POD_NAME__-cmd
+  namespace: __NAMESPACE__     
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: __NODE_NAME__
+  volumes:
+    - name: kontinuous-source
+      hostPath:
+        path: /kontinuous/src
+    - name: kontinuous-status
+      hostPath:
+        path: /kontinuous/status
+    - name: kontinuous-docker
+      hostPath:
+        path: /var/run/docker.sock
+  containers:
+    - name: __POD_NAME__-cmd
+      image: __IMAGE__
+      workingDir: __WORKING_DIR__
+      imagePullPolicy: Always 
+      volumeMounts:
+        - name: kontinuous-source
+          mountPath: /kontinuous/src
+          readOnly: false
+        - name: kontinuous-status
+          mountPath: /kontinuous/status
+          readOnly: false
+        - name: kontinuous-docker
+          mountPath: /var/run/docker.sock
+          readOnly: false

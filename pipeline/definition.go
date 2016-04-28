@@ -20,6 +20,7 @@ type (
 		Metadata  map[string]interface{} `json:"metadata"`
 		Stages    []Stage                `json:"stages"`
 		Notifiers []*Notifier            `json:"notif,omitempty"`
+		Secrets   []string               `json:"secrets,omitempty"`
 	}
 )
 

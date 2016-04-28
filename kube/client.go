@@ -4,32 +4,35 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strings"
 
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/Sirupsen/logrus"
+	"github.com/ghodss/yaml"
 	"io/ioutil"
 	"net/http"
 )
 
-// JobClient is the interface to access the kubernetes job API
-type JobClient interface {
+// KubeClient is the interface to access the kubernetes job API
+type KubeClient interface {
 	CreateJob(job *Job) error
 	GetSecret(namespace string, secretName string) (map[string]string, error)
+	DeployResourceFile(resourceFile []byte) error
 }
 
 // concrete implementation of a job client
-type realJobClient struct {
+type realKubeClient struct {
 	*http.Client
 	address string
 	token   string
 }
 
-// NewClient returns a new JobClient connecting to the address. This uses the service
+// NewClient returns a new KubeClient connecting to the address. This uses the service
 // account credentials
-func NewClient(address string) (JobClient, error) {
+func NewClient(address string) (KubeClient, error) {
 	// create tls client
 	cacertFile := "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	capem, err := ioutil.ReadFile(cacertFile)
@@ -50,11 +53,11 @@ func NewClient(address string) (JobClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &realJobClient{client, address, string(token)}, nil
+	return &realKubeClient{client, address, string(token)}, nil
 }
 
 // Create a new kubernetes Job with the given job
-func (r *realJobClient) CreateJob(job *Job) error {
+func (r *realKubeClient) CreateJob(job *Job) error {
 	url := "/apis/extensions/v1beta1/namespaces/" + job.Metadata["namespace"].(string) + "/jobs"
 	data, err := json.Marshal(job)
 	if err != nil {
@@ -65,8 +68,59 @@ func (r *realJobClient) CreateJob(job *Job) error {
 
 }
 
+// DeployResourceFile deploys a Kubernbetes YAML spec file as Kubernetes resources
+func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
+
+	resources := strings.Split(string(resourceFile), "---")
+
+	for _, resource := range resources {
+
+		// if it's empty, skip
+		if strings.TrimSpace(resource) == "" {
+			continue
+		}
+
+		logrus.Info("deploying to kubernetes: ", resource)
+
+		data, err := yaml.YAMLToJSON([]byte(resource))
+		if err != nil {
+			logrus.WithError(err).Error("unable to convert yaml to json")
+			return err
+		}
+
+		var out map[string]interface{}
+		err = json.Unmarshal(data, &out)
+		if err != nil {
+			logrus.WithError(err).Error("unable to unmarshal json to map")
+			return err
+		}
+
+		// if unmarshalled data is nil, skip
+		if out == nil {
+			continue
+		}
+
+		kind := strings.ToLower(out["kind"].(string)) + "s"
+		metadata := out["metadata"]
+		namespace := "default"
+		if metadata != nil {
+			namespace = metadata.(map[string]interface{})["namespace"].(string)
+		}
+
+		// endpoint is /api/v1/namespaces/{namespace}/{resourceType}
+		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
+		err = r.doPost(uri, bytes.NewReader(data))
+		if err != nil {
+			logrus.WithError(err).Error("unable to POST data")
+			return err
+		}
+	}
+
+	return nil
+}
+
 //Get secret with a given namespace and secret name
-func (r *realJobClient) GetSecret(namespace string, secretName string) (map[string]string, error) {
+func (r *realKubeClient) GetSecret(namespace string, secretName string) (map[string]string, error) {
 	secret := &Secret{}
 	secrets := make(map[string]string)
 
@@ -89,7 +143,7 @@ func (r *realJobClient) GetSecret(namespace string, secretName string) (map[stri
 	return secrets, nil
 }
 
-func (r *realJobClient) doGet(uri string, response interface{}) error {
+func (r *realKubeClient) doGet(uri string, response interface{}) error {
 	req, err := r.createRequest("GET", uri, nil)
 	if err != nil {
 		return err
@@ -113,7 +167,7 @@ func (r *realJobClient) doGet(uri string, response interface{}) error {
 	return nil
 }
 
-func (r *realJobClient) doPost(uri string, data io.Reader) error {
+func (r *realKubeClient) doPost(uri string, data io.Reader) error {
 	req, err := r.createRequest("POST", uri, data)
 	if err != nil {
 		return err
@@ -133,7 +187,7 @@ func (r *realJobClient) doPost(uri string, data io.Reader) error {
 	return fmt.Errorf("%d: %s", res.StatusCode, string(body))
 }
 
-func (r *realJobClient) createRequest(method, uri string, data io.Reader) (*http.Request, error) {
+func (r *realKubeClient) createRequest(method, uri string, data io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, r.address+uri, data)
 	if err != nil {
 		return nil, err

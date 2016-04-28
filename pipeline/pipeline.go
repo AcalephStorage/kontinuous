@@ -57,8 +57,9 @@ type (
 	}
 
 	Notifier struct {
-		Type     string                 `json:"type"`
-		Metadata map[string]interface{} `json:"metadata"`
+		Type      string                 `json:"type"`
+		Metadata  map[string]interface{} `json:"metadata, omitempty"`
+		Namespace string                 `json:"-"`
 	}
 )
 
@@ -74,6 +75,7 @@ type Pipeline struct {
 	Login     string      `json:"login"`
 	Source    string      `json:"-"`
 	Notifiers []*Notifier `json:"notif,omitempty"`
+	Secrets   []string    `json:"secrets,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -196,7 +198,8 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	keys.Private, _ = kvClient.Get(path + "/keys/private")
 	p.Keys = keys
 	p.Name = p.fullName()
-
+	secrets, _ := kvClient.Get(path + "/secrets")
+	p.Secrets = strings.Split(secrets, ",")
 	pipelineNotifiers := []*Notifier{}
 	notifiers, _ := kvClient.Get(path + "/notif/type")
 
@@ -238,6 +241,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	p.Name = p.fullName()
 	path := pipelineNamespace + p.Name
 	events := strings.Join(p.Events, ",")
+	pipelineSecrets := strings.Join(p.Secrets, ",")
 	isNew := false
 
 	_, err = kvClient.GetDir(path)
@@ -269,26 +273,14 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(path+"/source", p.Source); err != nil {
 		return handleSaveError(path, isNew, err, kvClient)
 	}
+	if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
+		return handleSaveError(path, isNew, err, kvClient)
+	}
 
 	if p.Notifiers != nil && len(p.Notifiers) > 0 {
 		if err = kvClient.PutDir(path + "/notif"); err != nil {
 			return handleSaveError(path, isNew, err, kvClient)
 		}
-<<<<<<< Updated upstream
-	}
-
-	for _, notifier := range p.Notifiers {
-		notifTypePath := fmt.Sprintf("%s/notif/%s", path, notifier.Type)
-		if err = kvClient.PutDir(notifTypePath); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
-
-		for key, value := range notifier.Metadata {
-			notifpath := fmt.Sprintf("%s/%s", notifTypePath, key)
-			if err = kvClient.Put(notifpath, value.(string)); err != nil {
-				return handleSaveError(notifpath, isNew, err, kvClient)
-			}
-=======
 
 		notifTypePath := fmt.Sprintf("%s/notif", path)
 		types := make([]string, len(p.Notifiers))
@@ -300,11 +292,8 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 		notifValue := strings.Join(types, " ")
 		if err = kvClient.Put(notifTypePath+"/type", notifValue); err != nil {
 			return handleSaveError(notifTypePath, isNew, err, kvClient)
->>>>>>> Stashed changes
 		}
 
-<<<<<<< Updated upstream
-=======
 		if err = kvClient.Put(notifTypePath+"/namespace", p.Notifiers[0].Namespace); err != nil {
 			return handleSaveError(notifTypePath, isNew, err, kvClient)
 		}
@@ -313,7 +302,6 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	return nil
 }
 
->>>>>>> Stashed changes
 // Validate checks if the required values for a pipeline are present
 func (p *Pipeline) Validate() error {
 	if p.Owner == "" {
@@ -475,7 +463,19 @@ func (p *Pipeline) generateKeys() error {
 }
 
 func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
-	p.Notifiers = definition.Spec.Template.Notifiers
+
+	pipelineNotifiers := []*Notifier{}
+
+	for _, notifier := range definition.Spec.Template.Notifiers {
+		namespace := "default"
+		if definition.Metadata["namespace"] != "" {
+			namespace = definition.Metadata["namespace"].(string)
+		}
+		notifier.Namespace = namespace
+		pipelineNotifiers = append(pipelineNotifiers, notifier)
+	}
+
+	p.Notifiers = pipelineNotifiers
 	if p.Notifiers != nil {
 		p.Save(kvClient)
 	}
