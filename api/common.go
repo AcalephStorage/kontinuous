@@ -142,7 +142,12 @@ func CreateJWT(accessToken string, secret string) (string, error) {
 		return "", errors.New("Access Token is empty")
 	}
 
-	ghUser, _ := GetGithubUser(accessToken)
+	ghUser, err := GetGithubUser(accessToken)
+
+	if err != nil {
+		logrus.WithError(err).Errorln("Account doesn't exists!")
+		return "", err
+	}
 
 	token := jwt.New(jwt.SigningMethodHS256)
 	token.Claims["user_id"] = "github|" + strconv.Itoa(ghUser.ID)
