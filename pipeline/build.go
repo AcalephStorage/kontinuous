@@ -11,6 +11,7 @@ import (
 	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
+	"github.com/Sirupsen/logrus"
 )
 
 // Build contains the details needed to run a build
@@ -180,9 +181,9 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 			metadata := make(map[string]interface{})
 			metadata["channel"] = "slackchannel"
 			metadata["url"] = "slackurl"
-			metadata["username"] = "username"
+			metadata["username"] = "slackuser"
 			notifier.Metadata = b.getSecrets(p.Secrets, notifier.Namespace, metadata)
-
+			logrus.Info("Slack Info %s %s %s ", notifier.Metadata["channel"], notifier.Metadata["url"], notifier.Metadata["username"])
 		}
 
 		if appNotifier != nil {
@@ -197,7 +198,7 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 }
 
 func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata map[string]interface{}) map[string]interface{} {
-
+	logrus.Info("Get Slack Details from Secrets ")
 	secrets := make(map[string]string)
 
 	for _, secretName := range pipelineSecrets {
@@ -211,12 +212,13 @@ func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata 
 		}
 	}
 
+	updatedMetadata := make(map[string]interface{})
 	for key, value := range metadata {
-		metadata[key] = secrets[value.(string)]
+		logrus.Info(fmt.Sprintf("Replace metadata: %s : value %s ", key, secrets[value.(string)]))
+		updatedMetadata[key] = secrets[value.(string)]
+
 	}
-
-	return metadata
-
+	return updatedMetadata
 }
 
 func (b *Build) getStatus(kvClient kv.KVClient) []notif.StageStatus {
