@@ -114,7 +114,11 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 
 		err = r.doGet(uri, &out)
 		if out != nil {
-			_ = r.doDelete(uri)
+			logrus.Info("remove existing resource")
+			err = r.doDelete(uri)
+			if err != nil {
+				logrus.WithError(err).Error("unable to DELETE resource")
+			}
 		}
 
 		postUri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
