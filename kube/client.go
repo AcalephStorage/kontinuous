@@ -103,13 +103,22 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 		kind := strings.ToLower(out["kind"].(string)) + "s"
 		metadata := out["metadata"]
 		namespace := "default"
+		name := ""
 		if metadata != nil {
 			namespace = metadata.(map[string]interface{})["namespace"].(string)
+			name = metadata.(map[string]interface{})["name"].(string)
 		}
 
 		// endpoint is /api/v1/namespaces/{namespace}/{resourceType}
-		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
-		err = r.doPost(uri, bytes.NewReader(data))
+		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s/%s", namespace, kind, name)
+
+		err = r.doGet(uri, &out)
+		if out != nil {
+			_ = r.doDelete(uri)
+		}
+
+		postUri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
+		err = r.doPost(postUri, bytes.NewReader(data))
 		if err != nil {
 			logrus.WithError(err).Error("unable to POST data")
 			return err
@@ -164,6 +173,28 @@ func (r *realKubeClient) doGet(uri string, response interface{}) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (r *realKubeClient) doDelete(uri string) error {
+
+	req, err := r.createRequest("DELETE", uri, nil)
+	if err != nil {
+		return err
+	}
+	res, err := r.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != 200 {
+		return fmt.Errorf("%d: %s", res.StatusCode, string(body))
+	}
+
 	return nil
 }
 
