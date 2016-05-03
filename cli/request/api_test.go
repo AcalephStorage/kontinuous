@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/AcalephStorage/kontinuous/api"
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -130,7 +131,7 @@ func TestCreateJWTfromValidAccessToken(t *testing.T) {
 	sampleGithubAccessToken := "validToken"
 	sampleSecret := "YTRjNjlkYjU4ZTRkNWM2YjU0NTk3Njg5ZjE2OWM4NTQK"
 
-	jwtToken, err := createJWT(sampleGithubAccessToken, sampleSecret)
+	jwtToken, err := api.CreateJWT(sampleGithubAccessToken, sampleSecret)
 
 	if err != nil {
 		t.Fatal("Unable to create JWT")
@@ -150,7 +151,7 @@ func TestCreateJWTfromInvalidAccessToken(t *testing.T) {
 	sampleGithubAccessToken := ""
 	sampleSecret := "YTRjNjlkYjU4ZTRkNWM2YjU0NTk3Njg5ZjE2OWM4NTQK"
 
-	jwt, _ := createJWT(sampleGithubAccessToken, sampleSecret)
+	jwt, _ := api.CreateJWT(sampleGithubAccessToken, sampleSecret)
 
 	assertDeepEqual(t, jwt, sampleGithubAccessToken)
 }

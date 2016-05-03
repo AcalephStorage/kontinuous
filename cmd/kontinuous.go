@@ -60,12 +60,14 @@ func main() {
 
 	container := createRestfulContainer()
 
+	auth := &api.AuthResource{}
 	pipeline := &api.PipelineResource{
 		KVClient:    createKVClient(kvAddress),
 		MinioClient: createMinioClient(s3Url, s3Access, s3Secret),
 	}
 	repos := &api.RepositoryResource{}
 
+	auth.Register(container)
 	pipeline.Register(container)
 	repos.Register(container)
 

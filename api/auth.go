@@ -17,6 +17,10 @@ type JWTClaims struct {
 	GithubAccessToken string
 }
 
+type AuthResource struct {
+	JWTClaims
+}
+
 var (
 	claims JWTClaims
 
@@ -57,6 +61,42 @@ var (
 		chain.ProcessFilter(req, resp)
 	}
 )
+
+func (a *AuthResource) Register(container *restful.Container) {
+	ws := new(restful.WebService)
+
+	ws.
+		Path("/authorize").
+		Consumes(restful.MIME_JSON).
+		Produces(restful.MIME_JSON).
+		Produces(restful.MIME_JSON).
+		Filter(ncsaCommonLogFormatLogger)
+
+	ws.Route(ws.POST("").To(a.authorize).
+		Doc("Generate JWT for API authentication").
+		Operation("authorize"))
+
+	container.Add(ws)
+}
+
+func (a *AuthResource) authorize(req *restful.Request, res *restful.Response) {
+	dsecret, _ := base64.URLEncoding.DecodeString(os.Getenv("AUTH_SECRET"))
+	accessToken := req.QueryParameter("access_token")
+	if len(accessToken) == 0 {
+		jsonError(res, http.StatusBadRequest, errors.New("Missing Access Token!"), "Unable to find access token")
+		return
+	}
+
+	jwtToken, err := CreateJWT(accessToken, string(dsecret))
+
+	if err != nil {
+		jsonError(res, http.StatusInternalServerError, err, "Unable to create jwt for user")
+		return
+	}
+
+	res.WriteHeader(http.StatusCreated)
+	res.Write([]byte(jwtToken))
+}
 
 func parseToken(req *restful.Request) string {
 	// apply the same checking as jwt.ParseFromRequest
