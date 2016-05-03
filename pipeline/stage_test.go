@@ -21,7 +21,7 @@ func getUpdateStatusResources(status string) (*StatusUpdate, *Pipeline, *Build, 
 
 	u := &StatusUpdate{
 		Status:    status,
-		Timestamp: "1460183953",
+		Timestamp: 1460183953,
 	}
 
 	return u, p, b, s, kvc, git
