@@ -116,7 +116,7 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 		err = r.doGet(uri, &out)
 		if out != nil {
 			err = r.doDelete(uri)
-			time.Sleep(5 * time.Second)
+			time.Sleep(30 * time.Second)
 			if err != nil {
 				logrus.WithError(err).Error("unable to DELETE resource")
 			}
