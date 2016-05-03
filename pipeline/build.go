@@ -4,11 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	etcd "github.com/coreos/etcd/client"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
+	"github.com/Sirupsen/logrus"
 )
 
 // Build contains the details needed to run a build
@@ -169,11 +172,18 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 	var appNotifier notif.AppNotifier
 
 	//TODO: will add more notification engines
+
 	for _, notifier := range p.Notifiers {
 
 		switch notifier.Type {
 		case "slack":
 			appNotifier = &notif.Slack{}
+			metadata := make(map[string]interface{})
+			metadata["channel"] = "slackchannel"
+			metadata["url"] = "slackurl"
+			metadata["username"] = "slackuser"
+			notifier.Metadata = b.getSecrets(p.Secrets, notifier.Namespace, metadata)
+			logrus.Info(fmt.Sprintf("Slack Info %s %s %s ", notifier.Metadata["channel"], notifier.Metadata["url"], notifier.Metadata["username"]))
 		}
 
 		if appNotifier != nil {
@@ -185,6 +195,31 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 	}
 
 	return nil
+}
+
+func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata map[string]interface{}) map[string]interface{} {
+	logrus.Info("Get Slack Details from Secrets ", pipelineSecrets, " with namespace ", namespace)
+	secrets := make(map[string]string)
+
+	for _, secretName := range pipelineSecrets {
+		kubeClient, _ := kube.NewClient("https://kubernetes.default")
+		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
+		if err != nil {
+			continue
+		}
+		for key, value := range secretEnv {
+			secrets[key] = strings.TrimSpace(value)
+			logrus.Info("secret ", secretName, "key ", key, " value", value)
+		}
+	}
+
+	updatedMetadata := make(map[string]interface{})
+	for key, value := range metadata {
+		logrus.Info(fmt.Sprintf("Replace metadata: %s : value %s with new value %s ", key, value.(string), secrets[value.(string)]))
+		updatedMetadata[key] = secrets[value.(string)]
+
+	}
+	return updatedMetadata
 }
 
 func (b *Build) getStatus(kvClient kv.KVClient) []notif.StageStatus {
