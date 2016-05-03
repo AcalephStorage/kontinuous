@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"encoding/json"
@@ -135,7 +134,7 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 
 	stageStatus := &ps.StatusUpdate{
 		Status:    ps.BuildFailure,
-		Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+		Timestamp: time.Now().UnixNano(),
 	}
 	stage, err := findStage("1", build, b.KVClient)
 	if err != nil {
