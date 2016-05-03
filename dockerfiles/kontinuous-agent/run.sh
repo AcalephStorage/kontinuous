@@ -178,7 +178,7 @@ store_logs() {
 	# iterate through pods
 	for (( i=0; i<${container_count}; i++ )); do
 		local container_name=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{(index .spec.containers ${i}).name}}")
-		kubectl logs ${pod_name} ${container_name} --namespace=${NAMESPACE} > /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/logs/result-${i}.log
+		kubectl logs ${pod_name} ${container_name} --namespace=${NAMESPACE} > /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/logs/${container_name}.log
 	done
 	mc mirror --quiet --force /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/ internal-storage/kontinuous
 }
