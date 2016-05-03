@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"crypto/tls"
 	"crypto/x509"
@@ -114,8 +115,8 @@ func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
 
 		err = r.doGet(uri, &out)
 		if out != nil {
-			logrus.Info("remove existing resource")
 			err = r.doDelete(uri)
+			time.Sleep(5 * time.Second)
 			if err != nil {
 				logrus.WithError(err).Error("unable to DELETE resource")
 			}
