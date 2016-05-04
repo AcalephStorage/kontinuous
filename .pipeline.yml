@@ -16,7 +16,7 @@ spec:
         app: kontinuous
         type: ci-cd
     secrets:
-      - docker-credentials
+      - quayregistrycreds
     stages:
       - name: Build Docker Image
         type: docker_build
@@ -32,6 +32,3 @@ spec:
           external_registry: quay.io
           external_image_name: acaleph/kontinuous
           require_credentials: "TRUE"
-          username: user
-          password: password
-          email: email
