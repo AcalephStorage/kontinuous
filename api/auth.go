@@ -179,7 +179,6 @@ func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) 
 		UserID: userID,
 	}
 
-	res.WriteHeader(http.StatusCreated)
 	res.WriteEntity(entity)
 }
 
