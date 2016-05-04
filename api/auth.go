@@ -111,7 +111,7 @@ func (a *AuthResource) authorize(req *restful.Request, res *restful.Response) {
 
 	client := &http.Client{}
 
-	r, err := http.NewRequest("POST", reqUrl.RequestURI(), nil)
+	r, err := http.NewRequest("POST", reqUrl.String(), nil)
 	if err != nil {
 		jsonError(res, http.StatusUnauthorized, err, "Error creating auth request")
 		return
