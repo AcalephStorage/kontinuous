@@ -143,7 +143,7 @@ func createMinioClient(url, access, secret string) *mc.MinioClient {
 	return minioClient
 }
 
-func getSecrets(secrets *Secrets) *Secrets {
+func getSecrets() *Secrets {
 	content, err := ioutil.ReadFile(SecretFile)
 	if err != nil {
 		mainLog.InFunc("getSecrets").
@@ -152,18 +152,19 @@ func getSecrets(secrets *Secrets) *Secrets {
 		os.Exit(1)
 	}
 
-	err = json.Unmarshal(content, secrets)
+	var secrets Secrets
+	err = json.Unmarshal(content, &secrets)
 	if err != nil {
 		mainLog.InFunc("getSecrets").
 			WithError(err).
 			Fatalf("Unable to parse data from %s", SecretFile)
 		os.Exit(1)
 	}
-	return secrets
+	return &secrets
 }
 
 func setEnv() {
-	if secrets := getSecrets(&Secrets{}); secrets != nil {
+	if secrets := getSecrets(); secrets != nil {
 		os.Setenv("AUTH_SECRET", secrets.AuthSecret)
 		os.Setenv("S3_ACCESS_KEY", secrets.S3AccessKey)
 		os.Setenv("S3_SECRET_KEY", secrets.S3SecretKey)

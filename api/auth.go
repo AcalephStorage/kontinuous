@@ -33,6 +33,11 @@ type AuthResource struct {
 	kv.KVClient
 }
 
+type AuthResponse struct {
+	JWT    string `json:"jwt"`
+	UserID string `json:"user_id"`
+}
+
 var (
 	claims JWTClaims
 
@@ -81,10 +86,10 @@ func (a *AuthResource) Register(container *restful.Container) {
 		Path("/login").
 		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON).
-		Produces(restful.MIME_JSON).
 		Filter(ncsaCommonLogFormatLogger)
 
 	ws.Route(ws.POST("github").To(a.githubLogin).
+		Writes(AuthResponse{}).
 		Doc("Generate JWT for API authentication").
 		Operation("authorize"))
 
@@ -158,9 +163,10 @@ func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) 
 		return
 	}
 
+	userID := fmt.Sprintf("github|%v", ghUser.ID)
 	user := &pipeline.User{
 		Name:     ghUser.Login,
-		RemoteID: fmt.Sprintf("github|%v", ghUser.ID),
+		RemoteID: userID,
 		Token:    accessToken,
 	}
 	if err := user.Save(a.KVClient); err != nil {
@@ -168,8 +174,13 @@ func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) 
 		return
 	}
 
+	entity := &AuthResponse{
+		JWT:    jwtToken,
+		UserID: userID,
+	}
+
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(jwtToken))
+	res.WriteEntity(entity)
 }
 
 func parseToken(req *restful.Request) string {
