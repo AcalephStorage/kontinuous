@@ -57,7 +57,8 @@ type (
 	}
 
 	GithubUser struct {
-		ID int `json:"id"`
+		Login string `json:"login"`
+		ID    int    `json:"id"`
 	}
 )
 

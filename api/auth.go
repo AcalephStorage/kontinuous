@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -13,6 +14,9 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/emicklei/go-restful"
+
+	"github.com/AcalephStorage/kontinuous/pipeline"
+	"github.com/AcalephStorage/kontinuous/store/kv"
 )
 
 type GithubAuthResponse struct {
@@ -26,6 +30,7 @@ type JWTClaims struct {
 
 type AuthResource struct {
 	JWTClaims
+	kv.KVClient
 }
 
 var (
@@ -73,20 +78,20 @@ func (a *AuthResource) Register(container *restful.Container) {
 	ws := new(restful.WebService)
 
 	ws.
-		Path("/authorize").
+		Path("/login").
 		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON).
 		Produces(restful.MIME_JSON).
 		Filter(ncsaCommonLogFormatLogger)
 
-	ws.Route(ws.POST("").To(a.authorize).
+	ws.Route(ws.POST("github").To(a.githubLogin).
 		Doc("Generate JWT for API authentication").
 		Operation("authorize"))
 
 	container.Add(ws)
 }
 
-func (a *AuthResource) authorize(req *restful.Request, res *restful.Response) {
+func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) {
 	dsecret, _ := base64.URLEncoding.DecodeString(os.Getenv("AUTH_SECRET"))
 	authCode := req.QueryParameter("code")
 	state := req.QueryParameter("state")
@@ -140,9 +145,24 @@ func (a *AuthResource) authorize(req *restful.Request, res *restful.Response) {
 	accessToken := ghRes.AccessToken
 
 	jwtToken, err := CreateJWT(accessToken, string(dsecret))
-
 	if err != nil {
-		jsonError(res, http.StatusInternalServerError, err, "Unable to create jwt for user")
+		jsonError(res, http.StatusUnauthorized, err, "Unable to create jwt for user")
+		return
+	}
+
+	ghUser, err := GetGithubUser(accessToken)
+	if err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Unable to get github user")
+		return
+	}
+
+	user := &pipeline.User{
+		Name:     ghUser.Login,
+		RemoteID: fmt.Sprintf("github|%v", ghUser.ID),
+		Token:    accessToken,
+	}
+	if err := user.Save(a.KVClient); err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Unable to register user")
 		return
 	}
 
