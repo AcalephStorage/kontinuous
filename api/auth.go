@@ -116,7 +116,7 @@ func (a *AuthResource) authorize(req *restful.Request, res *restful.Response) {
 		jsonError(res, http.StatusUnauthorized, err, "Error creating auth request")
 		return
 	}
-	r.Header.Add("Accepts", "application/json")
+	r.Header.Add("Accept", "application/json")
 
 	authRes, err := client.Do(r)
 	if err != nil {
