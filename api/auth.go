@@ -92,7 +92,9 @@ func (a *AuthResource) Register(container *restful.Container) {
 }
 
 func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) {
-	dsecret, _ := base64.URLEncoding.DecodeString(os.Getenv("AUTH_SECRET"))
+
+	dsecret := os.Getenv("AUTH_SECRET")
+
 	authCode := req.QueryParameter("code")
 	state := req.QueryParameter("state")
 
