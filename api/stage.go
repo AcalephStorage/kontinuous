@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"net/http"
@@ -227,7 +226,7 @@ func (s *StageResource) runStage(pipeline *ps.Pipeline, build *ps.Build, stage *
 
 	stageStatus := &ps.StatusUpdate{
 		Status:    ps.BuildFailure,
-		Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+		Timestamp: time.Now().UnixNano(),
 	}
 
 	switch stage.Type {

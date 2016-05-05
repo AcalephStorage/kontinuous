@@ -186,7 +186,7 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container {
 
 	containerName := "command-agent"
-	cmdImageName := fmt.Sprintf("%s-%s-%s", jobInfo.PipelineUUID, jobInfo.Build, jobInfo.Stage)
+	cmdImageName := fmt.Sprintf("%s-%s", jobInfo.PipelineUUID, jobInfo.Build)
 	cmdImage := fmt.Sprintf("%s/%s:%s", os.Getenv("INTERNAL_REGISTRY"), cmdImageName, jobInfo.Commit)
 	imageName := "quay.io/acaleph/command-agent:latest"
 	container := createJobContainer(containerName, imageName)

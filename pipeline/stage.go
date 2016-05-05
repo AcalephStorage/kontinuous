@@ -19,7 +19,7 @@ type (
 		Status      string `json:"status"`
 		JobName     string `json:"job_name"`
 		PodName     string `json:"pod_name"`
-		Timestamp   string `json:"timestamp"`
+		Timestamp   int64  `json:"timestamp"`
 		DockerImage string `json:"docker_image"`
 	}
 
@@ -169,24 +169,23 @@ func (s *Stage) Deploy(p *Pipeline, b *Build, c scm.Client) error {
 // UpdateStatus updates the status of a build stage
 func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVClient, c scm.Client) (*Stage, error) {
 	var scmStatus string
-	timestamp, _ := strconv.ParseInt(u.Timestamp, 10, 64)
 	// only update build status when job is running or has failed
 	// update success only if this is the last stage
 	switch u.Status {
 	case BuildRunning:
 		b.Status = BuildRunning
-		s.Started = timestamp
+		s.Started = u.Timestamp
 		scmStatus = scm.StatePending
 		if s.Index == 1 {
-			b.Started = timestamp
+			b.Started = u.Timestamp
 		}
 	case BuildSuccess:
-		s.Finished = timestamp
+		s.Finished = u.Timestamp
 		scmStatus = scm.StateSuccess
 	case BuildFailure:
 		b.Status = BuildFailure
-		b.Finished = timestamp
-		s.Finished = timestamp
+		b.Finished = u.Timestamp
+		s.Finished = u.Timestamp
 		scmStatus = scm.StateFailure
 	}
 
@@ -221,7 +220,7 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVCli
 		} else {
 			// update build to finished if stage doesn't have a successor
 			b.Status = BuildSuccess
-			b.Finished = timestamp
+			b.Finished = u.Timestamp
 		}
 
 		if err := b.Save(kv); err != nil {
