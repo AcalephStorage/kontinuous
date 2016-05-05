@@ -65,17 +65,18 @@ type (
 
 // Pipeline contains the details of a repo required for a build
 type Pipeline struct {
-	ID        string      `json:"id"`
-	Name      string      `json:"-"`
-	Owner     string      `json:"owner"`
-	Repo      string      `json:"repo"`
-	Events    []string    `json:"events,omitempty"`
-	Builds    []*Build    `json:"builds,omitempty"`
-	Keys      Key         `json:"-"`
-	Login     string      `json:"login"`
-	Source    string      `json:"-"`
-	Notifiers []*Notifier `json:"notif,omitempty"`
-	Secrets   []string    `json:"secrets,omitempty"`
+	ID          string      `json:"id"`
+	Name        string      `json:"-"`
+	Owner       string      `json:"owner"`
+	Repo        string      `json:"repo"`
+	Events      []string    `json:"events,omitempty"`
+	Builds      []*Build    `json:"builds,omitempty"`
+	LatestBuild int         `json:"latest_build,omitempty"`
+	Keys        Key         `json:"-"`
+	Login       string      `json:"login"`
+	Source      string      `json:"-"`
+	Notifiers   []*Notifier `json:"notif,omitempty"`
+	Secrets     []string    `json:"secrets,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -191,6 +192,7 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	p.Owner, _ = kvClient.Get(path + "/owner")
 	p.Login, _ = kvClient.Get(path + "/login")
 	p.Source, _ = kvClient.Get(path + "/source")
+	p.LatestBuild, _ = kvClient.GetInt(path + "/latest-build")
 	events, _ := kvClient.Get(path + "/events")
 	p.Events = strings.Split(events, ",")
 	keys := Key{}
@@ -275,6 +277,12 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	}
 	if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
 		return handleSaveError(path, isNew, err, kvClient)
+	}
+
+	if !isNew {
+		if err = kvClient.PutInt(path+"/latest-build", p.LatestBuild); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
+		}
 	}
 
 	if p.Notifiers != nil && len(p.Notifiers) > 0 {
@@ -417,6 +425,11 @@ func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.KVClient, 
 				return err
 			}
 		}
+	}
+
+	p.LatestBuild = b.Number
+	if err := p.Save(kvClient); err != nil {
+		return err
 	}
 
 	return nil
