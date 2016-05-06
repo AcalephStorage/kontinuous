@@ -12,11 +12,12 @@ RUN mkdir /swagger && tar xvzf third_party/swagger.tar.gz -C /swagger
 RUN apk update && \
     apk add make git && \
     make && \
-    rm -rf /go/bin && \
-    rm -rf /go/lib && \
+    mv build/bin/kontinuous /bin && \
+    mv build/bin/kontinuous-cli /bin && \
+    rm -rf /go && \
     apk del --purge make git && \
     rm -rf /var/cache/apk/*
 
 EXPOSE 3005
 
-ENTRYPOINT build/bin/kontinuous
+ENTRYPOINT /bin/kontinuous
