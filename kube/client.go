@@ -22,6 +22,9 @@ type KubeClient interface {
 	CreateJob(job *Job) error
 	GetSecret(namespace string, secretName string) (map[string]string, error)
 	DeployResourceFile(resourceFile []byte) error
+	GetLog(namespace, pod, container string) (string, error)
+	GetPodNameBySelector(namespace string, selector map[string]string) (string, error)
+	GetPodContainers(namespace, podName string) ([]string, error)
 }
 
 // concrete implementation of a job client

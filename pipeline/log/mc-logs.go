@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/store/mc"
 )
 
@@ -21,6 +22,38 @@ const (
 type Log struct {
 	Filename string `json:"filename"`
 	Content  string `json:"content"`
+}
+
+func FetchRunningLogs(k8s kube.KubeClient, namespace, pipeline, build, stage string) ([]Log, error) {
+
+	selector := map[string]string{
+		"pipeline": pipeline,
+		"build":    build,
+		"stage":    stage,
+	}
+	pod, err := k8s.GetPodNameBySelector(namespace, selector)
+	if err != nil {
+		logrus.Error(err)
+		return nil, err
+	}
+
+	containers, err := k8s.GetPodContainers(namespace, pod)
+	if err != nil {
+		logrus.Error(err)
+		return nil, err
+	}
+
+	logs := make([]Log, 0)
+	for _, container := range containers {
+		log, err := k8s.GetLog(namespace, pod, container)
+		if err != nil {
+			logrus.Error(err)
+			return nil, err
+		}
+		logs = append(logs, Log{Filename: container, Content: log})
+	}
+
+	return logs, nil
 }
 
 // FetchLogs returns a list of logs for a given stage
