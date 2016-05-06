@@ -10,11 +10,11 @@ RUN mkdir /swagger && tar xvzf third_party/swagger.tar.gz -C /swagger
 
 # create and remove downloaded libraries
 RUN apk update && \
-    apk add make bash ca-certificates git && \
+    apk add make git && \
     make && \
     rm -rf /go/bin && \
     rm -rf /go/lib && \
-    apk del --purge make && \
+    apk del --purge make git && \
     rm -rf /var/cache/apk/*
 
 EXPOSE 3005
