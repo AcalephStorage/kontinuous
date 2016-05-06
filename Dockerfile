@@ -9,6 +9,13 @@ WORKDIR /go/src/github.com/AcalephStorage/kontinuous
 RUN mkdir /swagger && tar xvzf third_party/swagger.tar.gz -C /swagger
 
 # create and remove downloaded libraries
-RUN make && rm -rf /go/bin && rm -rf /go/lib
+RUN apk add make && \
+    make && \
+    rm -rf /go/bin && \
+    rm -rf /go/lib && \
+    apk del --purge make && \
+    rm -rf /var/cache/apk/*
+
+EXPOSE 3005
 
 ENTRYPOINT build/bin/kontinuous
