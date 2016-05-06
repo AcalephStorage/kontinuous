@@ -9,7 +9,8 @@ WORKDIR /go/src/github.com/AcalephStorage/kontinuous
 RUN mkdir /swagger && tar xvzf third_party/swagger.tar.gz -C /swagger
 
 # create and remove downloaded libraries
-RUN apk add make && \
+RUN apk update && \
+    apk add make && \
     make && \
     rm -rf /go/bin && \
     rm -rf /go/lib && \
