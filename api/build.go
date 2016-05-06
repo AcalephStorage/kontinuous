@@ -180,7 +180,7 @@ func (b *BuildResource) list(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	builds, err := pipeline.GetBuilds(b.KVClient)
+	builds, err := pipeline.GetAllBuildsSummary(b.KVClient)
 	if err != nil {
 		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to list builds for %s/%s", owner, repo))
 		return

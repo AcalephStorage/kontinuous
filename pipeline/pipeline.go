@@ -377,6 +377,25 @@ func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
 	return definition, nil
 }
 
+// GetAllBuildsSummary fetches all summarized builds from the store
+func (p *Pipeline) GetAllBuildsSummary(kvClient kv.KVClient) ([]*BuildSummary, error) {
+	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
+	buildDirs, err := kvClient.GetDir(namespace)
+	if err != nil {
+		if etcd.IsKeyNotFound(err) {
+			return make([]*BuildSummary, 0), nil
+		}
+		return nil, err
+	}
+
+	builds := make([]*BuildSummary, len(buildDirs))
+	for i, pair := range buildDirs {
+		builds[i] = getBuildSummary(pair.Key, kvClient)
+	}
+
+	return builds, nil
+}
+
 // GetBuilds fetches all builds from the store
 func (p *Pipeline) GetBuilds(kvClient kv.KVClient) ([]*Build, error) {
 	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
