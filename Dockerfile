@@ -1,4 +1,4 @@
-FROM golang:1.6
+FROM golang:1.6-alpine
 
 ENV GOPATH /go
 ENV SWAGGER_UI /swagger/dist
@@ -11,4 +11,4 @@ RUN mkdir /swagger && tar xvzf third_party/swagger.tar.gz -C /swagger
 # create and remove downloaded libraries
 RUN make && rm -rf /go/bin && rm -rf /go/lib
 
-ENTRYPOINT build/bin/kontinuous 
+ENTRYPOINT build/bin/kontinuous
