@@ -99,6 +99,12 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		return
 	}
 
+	//check if .pipeline exist in branch
+	if _, err := pipeline.Definition(hook.Commit, client); err != nil {
+		jsonError(res, http.StatusInternalServerError, err, "Unable to create build. pipeline")
+		return
+	}
+
 	// persist build
 	build := &ps.Build{
 		Author:   hook.Author,
