@@ -110,8 +110,6 @@ func (s *StageResource) logs(req *restful.Request, res *restful.Response) {
 
 	var logs []buildlog.Log
 	if stage.Status == ps.BuildRunning {
-		logs, err = buildlog.FetchLogs(s.MinioClient, pipeline.ID, buildNumber, stageIndex)
-	} else {
 		// where to get ref?
 		ref := build.Commit
 		client, err := getScopedClient(pipeline.Login, s.KVClient, req)
@@ -128,6 +126,8 @@ func (s *StageResource) logs(req *restful.Request, res *restful.Response) {
 			namespace = "default"
 		}
 		logs, err = buildlog.FetchRunningLogs(s.KubeClient, namespace, pipeline.ID, buildNumber, stageIndex)
+	} else {
+		logs, err = buildlog.FetchLogs(s.MinioClient, pipeline.ID, buildNumber, stageIndex)
 	}
 
 	if err != nil {
