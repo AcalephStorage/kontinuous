@@ -288,24 +288,19 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	}
 
 	if p.Notifiers != nil && len(p.Notifiers) > 0 {
-		if err = kvClient.PutDir(path + "/notif"); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
 
-		notifTypePath := fmt.Sprintf("%s/notif", path)
 		types := make([]string, len(p.Notifiers))
-
 		for _, notifier := range p.Notifiers {
 			types = append(types, notifier.Type)
 		}
 
 		notifValue := strings.Join(types, " ")
-		if err = kvClient.Put(notifTypePath+"/type", notifValue); err != nil {
-			return handleSaveError(notifTypePath, isNew, err, kvClient)
+		if err = kvClient.Put(path+"/notif/type", notifValue); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
 		}
 
-		if err = kvClient.Put(notifTypePath+"/namespace", p.Notifiers[0].Namespace); err != nil {
-			return handleSaveError(notifTypePath, isNew, err, kvClient)
+		if err = kvClient.Put(path+"/notif/namespace", p.Notifiers[0].Namespace); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
 		}
 	}
 
