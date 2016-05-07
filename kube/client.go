@@ -15,6 +15,7 @@ import (
 	"github.com/ghodss/yaml"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 )
 
 // KubeClient is the interface to access the kubernetes job API
@@ -178,10 +179,19 @@ func (r *realKubeClient) doGet(uri string, response interface{}) error {
 	if res.StatusCode != 200 {
 		return fmt.Errorf("%d: %s", res.StatusCode, string(body))
 	}
+
+	contentType := res.Header.Get("Content-Type")
+	if strings.Contains(contentType, "text/plain") {
+		res := reflect.ValueOf(response).Elem()
+		res.SetBytes(body)
+		return nil
+	}
+
 	err = json.Unmarshal(body, response)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
