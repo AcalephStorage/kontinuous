@@ -29,12 +29,13 @@ func (k *realKubeClient) GetPodNameBySelector(namespace string, selector map[str
 func (k *realKubeClient) GetPodContainers(namespace, podName string) ([]string, error) {
 	uri := "/api/v1/namespaces/" + namespace + "/pods/" + podName
 	var response map[string]interface{}
-	err := k.doGet(uri, response)
+	err := k.doGet(uri, &response)
 	if err != nil {
 		return nil, err
 	}
 
 	containers := make([]string, 0)
+
 	cons := response["spec"].(map[string]interface{})["containers"].([]interface{})
 	for _, c := range cons {
 		cname := c.(map[string]interface{})["name"].(string)
