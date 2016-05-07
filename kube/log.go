@@ -16,10 +16,14 @@ func (k *realKubeClient) GetPodNameBySelector(namespace string, selector map[str
 		return "", err
 	}
 
-	pod := response["items"].([]interface{})[0].(map[string]interface{})
-	podName := pod["metadata"].(map[string]interface{})["name"].(string)
+	if response["items"] != nil && len(response["items"].([]interface{})) > 0 {
+		pod := response["items"].([]interface{})[0].(map[string]interface{})
+		podName := pod["metadata"].(map[string]interface{})["name"].(string)
 
-	return podName, nil
+		return podName, nil
+	}
+
+	return "", nil
 }
 
 func (k *realKubeClient) GetPodContainers(namespace, podName string) ([]string, error) {
