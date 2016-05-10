@@ -13,6 +13,7 @@ import (
 	"github.com/emicklei/go-restful/swagger"
 
 	"github.com/AcalephStorage/kontinuous/api"
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
 	"github.com/AcalephStorage/kontinuous/util"
@@ -60,12 +61,21 @@ func main() {
 
 	container := createRestfulContainer()
 
+	kvClient := createKVClient(kvAddress)
+	kubeClient, err := kube.NewClient("https://kubernetes.default")
+	if err != nil {
+		log.WithError(err).Fatal("unable to create kubernetes client")
+	}
+
+	auth := &api.AuthResource{KVClient: kvClient}
 	pipeline := &api.PipelineResource{
-		KVClient:    createKVClient(kvAddress),
+		KVClient:    kvClient,
 		MinioClient: createMinioClient(s3Url, s3Access, s3Secret),
+		KubeClient:  kubeClient,
 	}
 	repos := &api.RepositoryResource{}
 
+	auth.Register(container)
 	pipeline.Register(container)
 	repos.Register(container)
 
@@ -139,7 +149,7 @@ func createMinioClient(url, access, secret string) *mc.MinioClient {
 	return minioClient
 }
 
-func getSecrets(secrets *Secrets) *Secrets {
+func getSecrets() *Secrets {
 	content, err := ioutil.ReadFile(SecretFile)
 	if err != nil {
 		mainLog.InFunc("getSecrets").
@@ -148,18 +158,19 @@ func getSecrets(secrets *Secrets) *Secrets {
 		os.Exit(1)
 	}
 
-	err = json.Unmarshal(content, secrets)
+	var secrets Secrets
+	err = json.Unmarshal(content, &secrets)
 	if err != nil {
 		mainLog.InFunc("getSecrets").
 			WithError(err).
 			Fatalf("Unable to parse data from %s", SecretFile)
 		os.Exit(1)
 	}
-	return secrets
+	return &secrets
 }
 
 func setEnv() {
-	if secrets := getSecrets(&Secrets{}); secrets != nil {
+	if secrets := getSecrets(); secrets != nil {
 		os.Setenv("AUTH_SECRET", secrets.AuthSecret)
 		os.Setenv("S3_ACCESS_KEY", secrets.S3AccessKey)
 		os.Setenv("S3_SECRET_KEY", secrets.S3SecretKey)

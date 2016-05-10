@@ -92,7 +92,7 @@ notify_kontinuous() {
 	if [[ -f /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/docker-image ]]; then
 		docker_image=$(cat /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/docker-image)
 	fi
-	local data="{ \"status\": \"${status}\", \"job_name\": \"${job_name}\", \"pod_name\": \"${pod_name}\", \"timestamp\": \"$(date +%s)\", \"docker-image\": \"${docker-image}\" }"
+	local data="{ \"status\": \"${status}\", \"job_name\": \"${job_name}\", \"pod_name\": \"${pod_name}\", \"timestamp\": $(date +%s%N), \"docker-image\": \"${docker-image}\" }"
 	curl -X POST -H 'Content-Type: application/json' "${KONTINUOUS_URL}/api/v1/pipelines/${GIT_OWNER}/${GIT_REPO}/builds/${BUILD_ID}/stages/${STAGE_ID}" -d "${data}"
 }
 
@@ -178,7 +178,7 @@ store_logs() {
 	# iterate through pods
 	for (( i=0; i<${container_count}; i++ )); do
 		local container_name=$(kubectl get pods ${pod_name} --namespace=${NAMESPACE} -o template --template="{{(index .spec.containers ${i}).name}}")
-		kubectl logs ${pod_name} ${container_name} --namespace=${NAMESPACE} > /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/logs/result-${i}.log
+		kubectl logs ${pod_name} ${container_name} --namespace=${NAMESPACE} > /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/pipelines/${PIPELINE_ID}/builds/${BUILD_ID}/stages/${STAGE_ID}/logs/${container_name}.log
 	done
 	mc mirror --quiet --force /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/mc/ internal-storage/kontinuous
 }

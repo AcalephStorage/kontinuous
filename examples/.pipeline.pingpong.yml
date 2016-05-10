@@ -1,0 +1,61 @@
+# This is an example. A working repo can be found at: https://github.com/AcalephStorage/pingpong
+
+---
+kind: Pipeline
+apiVersion: v1alpha1
+metadata:
+  name: pingpong
+  namespace: acaleph
+spec:
+  selector:
+    matchLabels:
+      app: pingpong
+      type: api
+  template:
+    metadata:
+      name: pingpong
+      labels:
+        app: service
+        type: api
+    notif:
+      - type: slack
+    secrets:
+      - acalephnotifier
+      - quayregistrycreds
+    stages:
+      - name: Unit Test
+        type: command
+        params:
+          image: golang:1.6
+          command:
+            - make
+            - test
+      - name: Create Binary
+        type: command
+        params:
+          image: golang:1.6
+          command:
+            - make
+            - build
+        artifacts:
+          - build/bin/**
+      - name: Package App
+        type: command
+        params:
+          image: docker:1.8.3
+          command:
+            - ./package-app.sh
+            - /kontinuous/src/artifacts/pingpong
+      - name: Integration Test
+        type: command
+        params:
+           image: busybox:latest
+           command:
+              - ./integration-test.sh
+              - http://pingpong-test:8080
+           dependencies:
+              - integration-test.yaml
+      - name: Deploy App
+        type: deploy
+        params:
+          deploy_file: manifest.yaml

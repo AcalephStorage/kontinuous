@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	etcd "github.com/coreos/etcd/client"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 )
@@ -29,6 +31,19 @@ type Build struct {
 	Stages       []*Stage `json:"stages,omitempty"`
 }
 
+// BuildSummary contains the summarized details of a build
+type BuildSummary struct {
+	ID       string `json:"id"`
+	Number   int    `json:"number"`
+	Status   string `json:"status"`
+	Created  int64  `json:"created"`
+	Started  int64  `json:"started"`
+	Finished int64  `json:"finished"`
+	Branch   string `json:"branch"`
+	Commit   string `json:"commit"`
+	Author   string `json:"author"`
+}
+
 func getBuild(path string, kvClient kv.KVClient) *Build {
 	b := new(Build)
 	b.ID, _ = kvClient.Get(path + "/uuid")
@@ -48,6 +63,24 @@ func getBuild(path string, kvClient kv.KVClient) *Build {
 	b.Started, _ = strconv.ParseInt(started, 10, 64)
 	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 	b.GetStages(kvClient)
+
+	return b
+}
+
+func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
+	b := new(BuildSummary)
+	b.ID, _ = kvClient.Get(path + "/uuid")
+	b.Status, _ = kvClient.Get(path + "/status")
+	b.Branch, _ = kvClient.Get(path + "/branch")
+	b.Commit, _ = kvClient.Get(path + "/commit")
+	b.Author, _ = kvClient.Get(path + "/author")
+	b.Number, _ = kvClient.GetInt(path + "/number")
+	created, _ := kvClient.Get(path + "/created")
+	started, _ := kvClient.Get(path + "/started")
+	finished, _ := kvClient.Get(path + "/finished")
+	b.Created, _ = strconv.ParseInt(created, 10, 64)
+	b.Started, _ = strconv.ParseInt(started, 10, 64)
+	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 
 	return b
 }
@@ -169,11 +202,17 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 	var appNotifier notif.AppNotifier
 
 	//TODO: will add more notification engines
+
 	for _, notifier := range p.Notifiers {
 
 		switch notifier.Type {
 		case "slack":
 			appNotifier = &notif.Slack{}
+			metadata := make(map[string]interface{})
+			metadata["channel"] = "slackchannel"
+			metadata["url"] = "slackurl"
+			metadata["username"] = "slackuser"
+			notifier.Metadata = b.getSecrets(p.Secrets, notifier.Namespace, metadata)
 		}
 
 		if appNotifier != nil {
@@ -185,6 +224,28 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 	}
 
 	return nil
+}
+
+func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata map[string]interface{}) map[string]interface{} {
+	secrets := make(map[string]string)
+
+	for _, secretName := range pipelineSecrets {
+		kubeClient, _ := kube.NewClient("https://kubernetes.default")
+		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
+		if err != nil {
+			continue
+		}
+		for key, value := range secretEnv {
+			secrets[key] = strings.TrimSpace(value)
+		}
+	}
+
+	updatedMetadata := make(map[string]interface{})
+	for key, value := range metadata {
+		updatedMetadata[key] = secrets[value.(string)]
+
+	}
+	return updatedMetadata
 }
 
 func (b *Build) getStatus(kvClient kv.KVClient) []notif.StageStatus {

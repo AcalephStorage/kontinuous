@@ -2,19 +2,40 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
 	"encoding/base64"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/emicklei/go-restful"
+
+	"github.com/AcalephStorage/kontinuous/pipeline"
+	"github.com/AcalephStorage/kontinuous/store/kv"
 )
+
+type GithubAuthResponse struct {
+	AccessToken string `json:"access_token"`
+}
 
 // JWTClaims contains the claims from the jwt
 type JWTClaims struct {
 	GithubAccessToken string
+}
+
+type AuthResource struct {
+	JWTClaims
+	kv.KVClient
+}
+
+type AuthResponse struct {
+	JWT    string `json:"jwt"`
+	UserID string `json:"user_id"`
 }
 
 var (
@@ -57,6 +78,109 @@ var (
 		chain.ProcessFilter(req, resp)
 	}
 )
+
+func (a *AuthResource) Register(container *restful.Container) {
+	ws := new(restful.WebService)
+
+	ws.
+		Path("/login").
+		Consumes(restful.MIME_JSON).
+		Produces(restful.MIME_JSON).
+		Filter(ncsaCommonLogFormatLogger)
+
+	ws.Route(ws.POST("github").To(a.githubLogin).
+		Writes(AuthResponse{}).
+		Doc("Generate JWT for API authentication").
+		Operation("authorize"))
+
+	container.Add(ws)
+}
+
+func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) {
+
+	dsecret := os.Getenv("AUTH_SECRET")
+
+	authCode := req.QueryParameter("code")
+	state := req.QueryParameter("state")
+
+	if len(authCode) == 0 {
+		jsonError(res, http.StatusUnauthorized, errors.New("Missing Authorization Code"), "No authorization code provided")
+		return
+	}
+
+	// request url
+	reqUrl := url.URL{
+		Scheme: "https",
+		Host:   "github.com",
+		Path:   "login/oauth/access_token",
+	}
+	q := reqUrl.Query()
+	q.Set("client_id", os.Getenv("GH_CLIENT_ID"))
+	q.Set("client_secret", os.Getenv("GH_CLIENT_SECRET"))
+	q.Set("code", authCode)
+	q.Set("state", state)
+	reqUrl.RawQuery = q.Encode()
+
+	client := &http.Client{}
+
+	r, err := http.NewRequest("POST", reqUrl.String(), nil)
+	if err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Error creating auth request")
+		return
+	}
+	r.Header.Add("Accept", "application/json")
+
+	authRes, err := client.Do(r)
+	if err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Error requesting authorization token")
+		return
+	}
+	defer authRes.Body.Close()
+
+	body, err := ioutil.ReadAll(authRes.Body)
+	if err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Error reading response body")
+		return
+	}
+
+	var ghRes GithubAuthResponse
+	if err := json.Unmarshal(body, &ghRes); err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Error reading json body")
+		return
+	}
+
+	accessToken := ghRes.AccessToken
+
+	jwtToken, err := CreateJWT(accessToken, string(dsecret))
+	if err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Unable to create jwt for user")
+		return
+	}
+
+	ghUser, err := GetGithubUser(accessToken)
+	if err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Unable to get github user")
+		return
+	}
+
+	userID := fmt.Sprintf("github|%v", ghUser.ID)
+	user := &pipeline.User{
+		Name:     ghUser.Login,
+		RemoteID: userID,
+		Token:    accessToken,
+	}
+	if err := user.Save(a.KVClient); err != nil {
+		jsonError(res, http.StatusUnauthorized, err, "Unable to register user")
+		return
+	}
+
+	entity := &AuthResponse{
+		JWT:    jwtToken,
+		UserID: userID,
+	}
+
+	res.WriteEntity(entity)
+}
 
 func parseToken(req *restful.Request) string {
 	// apply the same checking as jwt.ParseFromRequest

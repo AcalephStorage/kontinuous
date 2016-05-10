@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"encoding/json"
@@ -100,6 +99,12 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		return
 	}
 
+	//check if .pipeline exist in branch
+	if _, err := pipeline.Definition(hook.Commit, client); err != nil {
+		jsonError(res, http.StatusInternalServerError, err, "Unable to create build. pipeline")
+		return
+	}
+
 	// persist build
 	build := &ps.Build{
 		Author:   hook.Author,
@@ -122,8 +127,8 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	//save notif details in pipeline
-	pipeline.SaveNotifiers(definition, b.KVClient)
+	//update details in pipeline
+	pipeline.UpdatePipeline(definition, b.KVClient)
 
 	// save stage details
 	build.Stages = definition.GetStages()
@@ -135,7 +140,7 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 
 	stageStatus := &ps.StatusUpdate{
 		Status:    ps.BuildFailure,
-		Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+		Timestamp: time.Now().UnixNano(),
 	}
 	stage, err := findStage("1", build, b.KVClient)
 	if err != nil {
@@ -181,7 +186,7 @@ func (b *BuildResource) list(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	builds, err := pipeline.GetBuilds(b.KVClient)
+	builds, err := pipeline.GetAllBuildsSummary(b.KVClient)
 	if err != nil {
 		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to list builds for %s/%s", owner, repo))
 		return

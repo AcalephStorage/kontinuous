@@ -2,13 +2,13 @@ package api
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"net/http"
 
 	"github.com/emicklei/go-restful"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	ps "github.com/AcalephStorage/kontinuous/pipeline"
 	buildlog "github.com/AcalephStorage/kontinuous/pipeline/log"
 	"github.com/AcalephStorage/kontinuous/scm"
@@ -20,6 +20,7 @@ import (
 type StageResource struct {
 	kv.KVClient
 	*mc.MinioClient
+	kube.KubeClient
 }
 
 func (s *StageResource) extend(ws *restful.WebService) {
@@ -101,13 +102,34 @@ func (s *StageResource) logs(req *restful.Request, res *restful.Response) {
 	buildNumber := req.PathParameter("buildNumber")
 	stageIndex := req.PathParameter("stageIndex")
 
-	pipeline, _, _, err := s.fetchResources(owner, repo, buildNumber, stageIndex)
+	pipeline, build, stage, err := s.fetchResources(owner, repo, buildNumber, stageIndex)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, "Unable to find resource")
 		return
 	}
 
-	logs, err := buildlog.FetchLogs(s.MinioClient, pipeline.ID, buildNumber, stageIndex)
+	var logs []buildlog.Log
+	if stage.Status == ps.BuildRunning {
+		// where to get ref?
+		ref := build.Commit
+		client, err := getScopedClient(pipeline.Login, s.KVClient, req)
+		if err != nil {
+			jsonError(res, http.StatusInternalServerError, err, "unable to create scm client")
+			return
+		}
+		definition, err := pipeline.Definition(ref, client)
+		if err != nil {
+			jsonError(res, http.StatusInternalServerError, err, "unable to get pipeline definition")
+		}
+		namespace := definition.Metadata["namespace"].(string)
+		if namespace == "" {
+			namespace = "default"
+		}
+		logs, err = buildlog.FetchRunningLogs(s.KubeClient, namespace, pipeline.ID, buildNumber, stageIndex)
+	} else {
+		logs, err = buildlog.FetchLogs(s.MinioClient, pipeline.ID, buildNumber, stageIndex)
+	}
+
 	if err != nil {
 		msg := fmt.Sprintf("Unable to find logs for %s/%s/builds/%s/stages/%s", owner, repo, buildNumber, stageIndex)
 		jsonError(res, http.StatusNotFound, err, msg)
@@ -227,7 +249,7 @@ func (s *StageResource) runStage(pipeline *ps.Pipeline, build *ps.Build, stage *
 
 	stageStatus := &ps.StatusUpdate{
 		Status:    ps.BuildFailure,
-		Timestamp: strconv.FormatInt(time.Now().UnixNano(), 10),
+		Timestamp: time.Now().UnixNano(),
 	}
 
 	switch stage.Type {

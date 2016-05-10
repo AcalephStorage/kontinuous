@@ -14,7 +14,6 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/dgrijalva/jwt-go"
 
-	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 )
@@ -66,17 +65,19 @@ type (
 
 // Pipeline contains the details of a repo required for a build
 type Pipeline struct {
-	ID        string      `json:"id"`
-	Name      string      `json:"-"`
-	Owner     string      `json:"owner"`
-	Repo      string      `json:"repo"`
-	Events    []string    `json:"events,omitempty"`
-	Builds    []*Build    `json:"builds,omitempty"`
-	Keys      Key         `json:"-"`
-	Login     string      `json:"login"`
-	Source    string      `json:"-"`
-	Notifiers []*Notifier `json:"notif,omitempty"`
-	Secrets   []string    `json:"secrets,omitempty"`
+	ID                string        `json:"id"`
+	Name              string        `json:"-"`
+	Owner             string        `json:"owner"`
+	Repo              string        `json:"repo"`
+	Events            []string      `json:"events,omitempty"`
+	Builds            []*Build      `json:"builds,omitempty"`
+	LatestBuildNumber int           `json:"-"`
+	LatestBuild       *BuildSummary `json:"latest_build,omitempty"`
+	Keys              Key           `json:"-"`
+	Login             string        `json:"login"`
+	Source            string        `json:"-"`
+	Notifiers         []*Notifier   `json:"notif,omitempty"`
+	Secrets           []string      `json:"secrets,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -192,6 +193,8 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	p.Owner, _ = kvClient.Get(path + "/owner")
 	p.Login, _ = kvClient.Get(path + "/login")
 	p.Source, _ = kvClient.Get(path + "/source")
+	p.LatestBuildNumber, _ = kvClient.GetInt(path + "/latest-build")
+	p.LatestBuild, _ = p.GetBuildSummary(p.LatestBuildNumber, kvClient)
 	events, _ := kvClient.Get(path + "/events")
 	p.Events = strings.Split(events, ",")
 	keys := Key{}
@@ -202,31 +205,21 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	secrets, _ := kvClient.Get(path + "/secrets")
 	p.Secrets = strings.Split(secrets, ",")
 	pipelineNotifiers := []*Notifier{}
-	notifiers, _ := kvClient.GetDir(path + "/notif")
-	for _, notifier := range notifiers {
-		pipelineNotifier := &Notifier{}
+	notifiers, _ := kvClient.Get(path + "/notif/type")
 
-		notiftype := strings.Split(notifier.Key, "/")
-		pipelineNotifier.Type = notiftype[len(notiftype)-1]
-		notifierKeys, err := kvClient.GetDir(notifier.Key)
+	if len(notifiers) > 0 {
+		notifierType := strings.Split(notifiers, " ")
+		notifnamespace, _ := kvClient.Get(path + "/notif/namespace")
 
-		if err != nil {
-			break
+		for _, notifier := range notifierType {
+			pipelineNotifier := &Notifier{}
+			pipelineNotifier.Type = notifier
+			pipelineNotifier.Namespace = notifnamespace
+			pipelineNotifiers = append(pipelineNotifiers, pipelineNotifier)
 		}
-
-		metadata := make(map[string]interface{})
-		for _, nkey := range notifierKeys {
-			notifierValue, _ := kvClient.Get(nkey.Key)
-			metadataKeys := strings.Split(nkey.Key, "/")
-			key := metadataKeys[len(metadataKeys)-1]
-			metadata[key] = notifierValue
-		}
-		pipelineNotifier.Metadata = metadata
-		pipelineNotifiers = append(pipelineNotifiers, pipelineNotifier)
+		p.Notifiers = pipelineNotifiers
 	}
-	p.Notifiers = pipelineNotifiers
 	return p
-
 }
 
 // GenerateHookSecret generates the secret for web hooks used for hook authentication
@@ -288,50 +281,30 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 		return handleSaveError(path, isNew, err, kvClient)
 	}
 
+	if !isNew {
+		if err = kvClient.PutInt(path+"/latest-build", p.LatestBuildNumber); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
+		}
+	}
+
 	if p.Notifiers != nil && len(p.Notifiers) > 0 {
-		if err = kvClient.PutDir(path + "/notif"); err != nil {
+
+		types := make([]string, len(p.Notifiers))
+		for _, notifier := range p.Notifiers {
+			types = append(types, notifier.Type)
+		}
+
+		notifValue := strings.Join(types, " ")
+		if err = kvClient.Put(path+"/notif/type", notifValue); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
+		}
+
+		if err = kvClient.Put(path+"/notif/namespace", p.Notifiers[0].Namespace); err != nil {
 			return handleSaveError(path, isNew, err, kvClient)
 		}
 	}
 
-	var secrets map[string]string
-
-	for _, notifier := range p.Notifiers {
-		notifTypePath := fmt.Sprintf("%s/notif/%s", path, notifier.Type)
-		secrets = getNotifSecret(p.Secrets, notifier.Namespace)
-
-		if err = kvClient.PutDir(notifTypePath); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
-
-		for key, value := range notifier.Metadata {
-			notifpath := fmt.Sprintf("%s/%s", notifTypePath, key)
-			notifValue := value.(string)
-			if secrets != nil {
-				notifValue = secrets[notifValue]
-			}
-			if err = kvClient.Put(notifpath, notifValue); err != nil {
-				return handleSaveError(notifpath, isNew, err, kvClient)
-			}
-		}
-	}
 	return nil
-}
-
-func getNotifSecret(pipelineSecrets []string, namespace string) map[string]string {
-	secrets := make(map[string]string)
-
-	for _, secretName := range pipelineSecrets {
-		kubeClient, _ := kube.NewClient("https://kubernetes.default")
-		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
-		if err != nil {
-			continue
-		}
-		for key, value := range secretEnv {
-			secrets[key] = strings.TrimSpace(value)
-		}
-	}
-	return secrets
 }
 
 // Validate checks if the required values for a pipeline are present
@@ -399,6 +372,25 @@ func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
 	return definition, nil
 }
 
+// GetAllBuildsSummary fetches all summarized builds from the store
+func (p *Pipeline) GetAllBuildsSummary(kvClient kv.KVClient) ([]*BuildSummary, error) {
+	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
+	buildDirs, err := kvClient.GetDir(namespace)
+	if err != nil {
+		if etcd.IsKeyNotFound(err) {
+			return make([]*BuildSummary, 0), nil
+		}
+		return nil, err
+	}
+
+	builds := make([]*BuildSummary, len(buildDirs))
+	for i, pair := range buildDirs {
+		builds[i] = getBuildSummary(pair.Key, kvClient)
+	}
+
+	return builds, nil
+}
+
 // GetBuilds fetches all builds from the store
 func (p *Pipeline) GetBuilds(kvClient kv.KVClient) ([]*Build, error) {
 	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
@@ -429,6 +421,17 @@ func (p *Pipeline) GetBuild(num int, kvClient kv.KVClient) (*Build, bool) {
 	return getBuild(path, kvClient), true
 }
 
+// GetBuildSummary fetches a specific build by its number and returns a summarized details
+func (p *Pipeline) GetBuildSummary(num int, kvClient kv.KVClient) (*BuildSummary, bool) {
+	path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
+	_, err := kvClient.GetDir(path)
+	if err != nil || etcd.IsKeyNotFound(err) {
+		return nil, false
+	}
+
+	return getBuildSummary(path, kvClient), true
+}
+
 // CreateBuild persists build & stage details based on the given definition
 func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.KVClient, scmClient scm.Client) error {
 	b.Created = time.Now().UnixNano()
@@ -449,6 +452,11 @@ func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.KVClient, 
 				return err
 			}
 		}
+	}
+
+	p.LatestBuildNumber = b.Number
+	if err := p.Save(kvClient); err != nil {
+		return err
 	}
 
 	return nil
@@ -494,7 +502,7 @@ func (p *Pipeline) generateKeys() error {
 	return nil
 }
 
-func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
+func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) {
 
 	pipelineNotifiers := []*Notifier{}
 
@@ -508,8 +516,7 @@ func (p *Pipeline) SaveNotifiers(definition *Definition, kvClient kv.KVClient) {
 	}
 
 	p.Notifiers = pipelineNotifiers
-	if p.Notifiers != nil {
-		p.Save(kvClient)
-	}
+	p.Secrets = definition.Spec.Template.Secrets
+	p.Save(kvClient)
 
 }

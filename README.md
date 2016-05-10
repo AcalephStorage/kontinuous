@@ -38,6 +38,8 @@ Alternatively, for more customization, a sample yaml file for running kontinuous
 
 Once running, add a [.pipeline.yml](#pipeline-spec) to the root of your Github repo and configure the webhooks.
 
+Example pipelines can be found in [/examples](./examples)
+
 The [CLI client](#clients) or [API](#api) can be used to view build status or logs.
 
 ### Dependencies
@@ -78,7 +80,7 @@ The following environment variables needs to be defined:
 
 A Kubernetes Secret also needs to be defined and mounted to the Pod. The secret should have a key named `kontinuous-secrets` and should contain the following data (must be base64 encoded):
 
-```
+```json
 {
   "AuthSecret": "base64 encoded auth secret",
   "S3SecretKey": "s3 secret key",
@@ -102,7 +104,7 @@ The repository needs to define a build pipeline in the repository root called `.
 
 Here's a sample `.pipeline.yml`:
 
-```
+```yaml
 ---
 apiVersion: v1alpha1
 kind: Pipeline
@@ -157,7 +159,7 @@ The format is something similar to K8s Specs. Here are more details on some of t
 
 The general definition of a stage is:
 
-```
+```yaml
 name: Friendly name
 type: {docker_build,command,docker_publish}
 params:
@@ -242,9 +244,9 @@ Make sure to enable access to the following:
 
 The script `scripts/jwt-gen` can generate a JSON Web Token to be used for authentication with Kontinuous. 
 
-```
+```console
 $ scripts/jwt-gen --secret {base64url encoded secret} --github-token {github-token}
-``` 
+```
 
 This generates a JSON Web Token and can be added to the request header as `Authorization: Bearer {token}` to authenticate requests.
 
@@ -266,13 +268,13 @@ A Web based Dashboard is under development.
 
 Building `kontinuous` from source is done by:
 
-```
+```console
 $ make deps build
 ```
 
 Build the docker image:
 
-```
+```console
 $ docker build -t {tag} .
 ```
 
