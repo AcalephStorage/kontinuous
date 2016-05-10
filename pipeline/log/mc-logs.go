@@ -50,7 +50,8 @@ func FetchRunningLogs(k8s kube.KubeClient, namespace, pipeline, build, stage str
 			logrus.Error(err)
 			return nil, err
 		}
-		logs = append(logs, Log{Filename: container, Content: log})
+		encodedContent := base64.StdEncoding.EncodeToString([]byte(log))
+		logs = append(logs, Log{Filename: container, Content: encodedContent})
 	}
 
 	return logs, nil
