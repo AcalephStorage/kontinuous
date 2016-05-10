@@ -11,7 +11,6 @@ import (
 	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
-	"github.com/Sirupsen/logrus"
 )
 
 // Build contains the details needed to run a build
@@ -30,6 +29,19 @@ type Build struct {
 	CloneURL     string   `json:"clone_url"`
 	Pipeline     string   `json:"-"`
 	Stages       []*Stage `json:"stages,omitempty"`
+}
+
+// BuildSummary contains the summarized details of a build
+type BuildSummary struct {
+	ID       string `json:"id"`
+	Number   int    `json:"number"`
+	Status   string `json:"status"`
+	Created  int64  `json:"created"`
+	Started  int64  `json:"started"`
+	Finished int64  `json:"finished"`
+	Branch   string `json:"branch"`
+	Commit   string `json:"commit"`
+	Author   string `json:"author"`
 }
 
 func getBuild(path string, kvClient kv.KVClient) *Build {
@@ -51,6 +63,24 @@ func getBuild(path string, kvClient kv.KVClient) *Build {
 	b.Started, _ = strconv.ParseInt(started, 10, 64)
 	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 	b.GetStages(kvClient)
+
+	return b
+}
+
+func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
+	b := new(BuildSummary)
+	b.ID, _ = kvClient.Get(path + "/uuid")
+	b.Status, _ = kvClient.Get(path + "/status")
+	b.Branch, _ = kvClient.Get(path + "/branch")
+	b.Commit, _ = kvClient.Get(path + "/commit")
+	b.Author, _ = kvClient.Get(path + "/author")
+	b.Number, _ = kvClient.GetInt(path + "/number")
+	created, _ := kvClient.Get(path + "/created")
+	started, _ := kvClient.Get(path + "/started")
+	finished, _ := kvClient.Get(path + "/finished")
+	b.Created, _ = strconv.ParseInt(created, 10, 64)
+	b.Started, _ = strconv.ParseInt(started, 10, 64)
+	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 
 	return b
 }
@@ -183,7 +213,6 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 			metadata["url"] = "slackurl"
 			metadata["username"] = "slackuser"
 			notifier.Metadata = b.getSecrets(p.Secrets, notifier.Namespace, metadata)
-			logrus.Info(fmt.Sprintf("Slack Info %s %s %s ", notifier.Metadata["channel"], notifier.Metadata["url"], notifier.Metadata["username"]))
 		}
 
 		if appNotifier != nil {
@@ -198,7 +227,6 @@ func (b *Build) Notify(kvClient kv.KVClient) error {
 }
 
 func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata map[string]interface{}) map[string]interface{} {
-	logrus.Info("Get Slack Details from Secrets ", pipelineSecrets, " with namespace ", namespace)
 	secrets := make(map[string]string)
 
 	for _, secretName := range pipelineSecrets {
@@ -209,13 +237,11 @@ func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata 
 		}
 		for key, value := range secretEnv {
 			secrets[key] = strings.TrimSpace(value)
-			logrus.Info("secret ", secretName, "key ", key, " value", value)
 		}
 	}
 
 	updatedMetadata := make(map[string]interface{})
 	for key, value := range metadata {
-		logrus.Info(fmt.Sprintf("Replace metadata: %s : value %s with new value %s ", key, value.(string), secrets[value.(string)]))
 		updatedMetadata[key] = secrets[value.(string)]
 
 	}

@@ -65,17 +65,19 @@ type (
 
 // Pipeline contains the details of a repo required for a build
 type Pipeline struct {
-	ID        string      `json:"id"`
-	Name      string      `json:"-"`
-	Owner     string      `json:"owner"`
-	Repo      string      `json:"repo"`
-	Events    []string    `json:"events,omitempty"`
-	Builds    []*Build    `json:"builds,omitempty"`
-	Keys      Key         `json:"-"`
-	Login     string      `json:"login"`
-	Source    string      `json:"-"`
-	Notifiers []*Notifier `json:"notif,omitempty"`
-	Secrets   []string    `json:"secrets,omitempty"`
+	ID                string        `json:"id"`
+	Name              string        `json:"-"`
+	Owner             string        `json:"owner"`
+	Repo              string        `json:"repo"`
+	Events            []string      `json:"events,omitempty"`
+	Builds            []*Build      `json:"builds,omitempty"`
+	LatestBuildNumber int           `json:"-"`
+	LatestBuild       *BuildSummary `json:"latest_build,omitempty"`
+	Keys              Key           `json:"-"`
+	Login             string        `json:"login"`
+	Source            string        `json:"-"`
+	Notifiers         []*Notifier   `json:"notif,omitempty"`
+	Secrets           []string      `json:"secrets,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -191,6 +193,8 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	p.Owner, _ = kvClient.Get(path + "/owner")
 	p.Login, _ = kvClient.Get(path + "/login")
 	p.Source, _ = kvClient.Get(path + "/source")
+	p.LatestBuildNumber, _ = kvClient.GetInt(path + "/latest-build")
+	p.LatestBuild, _ = p.GetBuildSummary(p.LatestBuildNumber, kvClient)
 	events, _ := kvClient.Get(path + "/events")
 	p.Events = strings.Split(events, ",")
 	keys := Key{}
@@ -277,25 +281,26 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 		return handleSaveError(path, isNew, err, kvClient)
 	}
 
-	if p.Notifiers != nil && len(p.Notifiers) > 0 {
-		if err = kvClient.PutDir(path + "/notif"); err != nil {
+	if !isNew {
+		if err = kvClient.PutInt(path+"/latest-build", p.LatestBuildNumber); err != nil {
 			return handleSaveError(path, isNew, err, kvClient)
 		}
+	}
 
-		notifTypePath := fmt.Sprintf("%s/notif", path)
+	if p.Notifiers != nil && len(p.Notifiers) > 0 {
+
 		types := make([]string, len(p.Notifiers))
-
 		for _, notifier := range p.Notifiers {
 			types = append(types, notifier.Type)
 		}
 
 		notifValue := strings.Join(types, " ")
-		if err = kvClient.Put(notifTypePath+"/type", notifValue); err != nil {
-			return handleSaveError(notifTypePath, isNew, err, kvClient)
+		if err = kvClient.Put(path+"/notif/type", notifValue); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
 		}
 
-		if err = kvClient.Put(notifTypePath+"/namespace", p.Notifiers[0].Namespace); err != nil {
-			return handleSaveError(notifTypePath, isNew, err, kvClient)
+		if err = kvClient.Put(path+"/notif/namespace", p.Notifiers[0].Namespace); err != nil {
+			return handleSaveError(path, isNew, err, kvClient)
 		}
 	}
 
@@ -367,6 +372,25 @@ func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
 	return definition, nil
 }
 
+// GetAllBuildsSummary fetches all summarized builds from the store
+func (p *Pipeline) GetAllBuildsSummary(kvClient kv.KVClient) ([]*BuildSummary, error) {
+	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
+	buildDirs, err := kvClient.GetDir(namespace)
+	if err != nil {
+		if etcd.IsKeyNotFound(err) {
+			return make([]*BuildSummary, 0), nil
+		}
+		return nil, err
+	}
+
+	builds := make([]*BuildSummary, len(buildDirs))
+	for i, pair := range buildDirs {
+		builds[i] = getBuildSummary(pair.Key, kvClient)
+	}
+
+	return builds, nil
+}
+
 // GetBuilds fetches all builds from the store
 func (p *Pipeline) GetBuilds(kvClient kv.KVClient) ([]*Build, error) {
 	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
@@ -397,6 +421,17 @@ func (p *Pipeline) GetBuild(num int, kvClient kv.KVClient) (*Build, bool) {
 	return getBuild(path, kvClient), true
 }
 
+// GetBuildSummary fetches a specific build by its number and returns a summarized details
+func (p *Pipeline) GetBuildSummary(num int, kvClient kv.KVClient) (*BuildSummary, bool) {
+	path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
+	_, err := kvClient.GetDir(path)
+	if err != nil || etcd.IsKeyNotFound(err) {
+		return nil, false
+	}
+
+	return getBuildSummary(path, kvClient), true
+}
+
 // CreateBuild persists build & stage details based on the given definition
 func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.KVClient, scmClient scm.Client) error {
 	b.Created = time.Now().UnixNano()
@@ -417,6 +452,11 @@ func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.KVClient, 
 				return err
 			}
 		}
+	}
+
+	p.LatestBuildNumber = b.Number
+	if err := p.Save(kvClient); err != nil {
+		return err
 	}
 
 	return nil

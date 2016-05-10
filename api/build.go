@@ -99,6 +99,12 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 		return
 	}
 
+	//check if .pipeline exist in branch
+	if _, err := pipeline.Definition(hook.Commit, client); err != nil {
+		jsonError(res, http.StatusInternalServerError, err, "Unable to create build. pipeline")
+		return
+	}
+
 	// persist build
 	build := &ps.Build{
 		Author:   hook.Author,
@@ -180,7 +186,7 @@ func (b *BuildResource) list(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	builds, err := pipeline.GetBuilds(b.KVClient)
+	builds, err := pipeline.GetAllBuildsSummary(b.KVClient)
 	if err != nil {
 		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to list builds for %s/%s", owner, repo))
 		return

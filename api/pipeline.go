@@ -6,6 +6,7 @@ import (
 
 	"github.com/emicklei/go-restful"
 
+	"github.com/AcalephStorage/kontinuous/kube"
 	ps "github.com/AcalephStorage/kontinuous/pipeline"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
@@ -15,6 +16,7 @@ import (
 type PipelineResource struct {
 	kv.KVClient
 	*mc.MinioClient
+	kube.KubeClient
 }
 
 // Register registers the endpoint of this resource to the container
@@ -85,6 +87,7 @@ func (p *PipelineResource) Register(container *restful.Container) {
 	stageResource := &StageResource{
 		KVClient:    p.KVClient,
 		MinioClient: p.MinioClient,
+		KubeClient:  p.KubeClient,
 	}
 
 	buildResource.extend(ws)

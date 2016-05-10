@@ -13,6 +13,7 @@ import (
 	"github.com/emicklei/go-restful/swagger"
 
 	"github.com/AcalephStorage/kontinuous/api"
+	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
 	"github.com/AcalephStorage/kontinuous/util"
@@ -61,11 +62,16 @@ func main() {
 	container := createRestfulContainer()
 
 	kvClient := createKVClient(kvAddress)
+	kubeClient, err := kube.NewClient("https://kubernetes.default")
+	if err != nil {
+		log.WithError(err).Fatal("unable to create kubernetes client")
+	}
 
 	auth := &api.AuthResource{KVClient: kvClient}
 	pipeline := &api.PipelineResource{
 		KVClient:    kvClient,
 		MinioClient: createMinioClient(s3Url, s3Access, s3Secret),
+		KubeClient:  kubeClient,
 	}
 	repos := &api.RepositoryResource{}
 

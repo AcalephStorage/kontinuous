@@ -31,11 +31,12 @@ type (
 	}
 
 	PipelineData struct {
-		ID     string   `json:"id"`
-		Owner  string   `json:"owner"`
-		Repo   string   `json:"repo"`
-		Events []string `json:"events"`
-		Login  string   `json:"login"`
+		ID          string     `json:"id"`
+		Owner       string     `json:"owner"`
+		Repo        string     `json:"repo"`
+		Events      []string   `json:"events"`
+		Login       string     `json:"login"`
+		LatestBuild *BuildData `json:"latest_build"`
 	}
 
 	RepoData struct {
@@ -117,6 +118,20 @@ func (c *Config) GetPipelines(client *http.Client, pipelineName string) ([]*Pipe
 	return list, nil
 }
 
+func (c *Config) GetPipeline(client *http.Client, pipelineName string) (*PipelineData, error) {
+	endpoint := fmt.Sprintf("/api/v1/pipelines/%s", pipelineName)
+	body, err := c.sendAPIRequest(client, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	item := new(PipelineData)
+	err = json.Unmarshal(body, &item)
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
 func (c *Config) GetRepos(client *http.Client) ([]*RepoData, error) {
 	body, err := c.sendAPIRequest(client, "GET", "/api/v1/repositories", nil)
 	if err != nil {
@@ -147,15 +162,15 @@ func (c *Config) GetBuilds(client *http.Client, owner, repo string) ([]*BuildDat
 
 func (c *Config) GetStages(client *http.Client, owner, repo string, buildNumber int) ([]*StageData, error) {
 	if buildNumber == 0 {
-		builds, err := c.GetBuilds(client, owner, repo)
+		pipelineName := fmt.Sprintf("%s/%s", owner, repo)
+		pipeline, err := c.GetPipeline(client, pipelineName)
 		if err != nil {
 			return nil, err
 		}
-		if len(builds) == 0 {
-			return []*StageData{}, nil
+		if pipeline.LatestBuild == nil {
+			return nil, errors.New("No builds for pipeline.")
 		}
-		lastBuild := builds[len(builds)-1]
-		buildNumber = lastBuild.Number
+		buildNumber = pipeline.LatestBuild.Number
 	}
 
 	endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d/stages", owner, repo, buildNumber)
