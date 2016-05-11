@@ -36,6 +36,7 @@ func (mc *MinioClient) ListObjects(bucket, prefix string) ([]minio.ObjectInfo, e
 	defer close(doneCh)
 
 	// List all objects from a bucket-name with a matching prefix.
+
 	for object := range mc.client.ListObjects(bucket, prefix, true, doneCh) {
 		if object.Err != nil {
 			return result, object.Err
@@ -48,6 +49,27 @@ func (mc *MinioClient) ListObjects(bucket, prefix string) ([]minio.ObjectInfo, e
 
 func (mc *MinioClient) CopyLocally(bucket, object, file string) error {
 	if err := mc.client.FGetObject(bucket, object, file); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (mc *MinioClient) DeleteTree(bucket, prefix string) error {
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	for object := range mc.client.ListObjects(bucket, prefix, true, doneCh) {
+		err := mc.DeleteObject(bucket, object.Key)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mc *MinioClient) DeleteObject(bucket, object string) error {
+	err := mc.client.RemoveObject(bucket, object)
+	if err != nil {
 		return err
 	}
 	return nil

@@ -16,6 +16,7 @@ import (
 
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
+	"github.com/AcalephStorage/kontinuous/store/mc"
 )
 
 const (
@@ -305,6 +306,22 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	}
 
 	return nil
+}
+
+func (p *Pipeline) DeletePipeline(kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
+	path := fmt.Sprintf("%s%s", pipelineNamespace, p.ID)
+	pipelinePrefix := fmt.Sprintf("pipelines/%s/", p.ID)
+	bucket := "kontinuous"
+
+	if err := kvClient.DeleteTree(path); err != nil {
+		return err
+	}
+
+	if err := mcClient.DeleteTree(bucket, pipelinePrefix); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 // Validate checks if the required values for a pipeline are present

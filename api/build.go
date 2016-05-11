@@ -56,6 +56,16 @@ func (b *BuildResource) extend(ws *restful.WebService) {
 		Param(ws.PathParameter("buildNumber", "build number").DataType("int")).
 		Writes(ps.Build{}).
 		Filter(requireAccessToken))
+
+	ws.Route(ws.DELETE("/{owner}/{repo}/builds/{buildNumber}").To(b.delete).
+		Doc("Remove build details").
+		Operation("delete").
+		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
+		Param(ws.PathParameter("repo", "repository name").DataType("string")).
+		Param(ws.PathParameter("buildNumber", "build number").DataType("int")).
+		Writes(ps.Build{}).
+		Filter(requireAccessToken))
+
 }
 
 func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
@@ -175,6 +185,27 @@ func (b *BuildResource) create(req *restful.Request, res *restful.Response) {
 	}
 
 	res.WriteEntity(build)
+}
+
+func (b *BuildResource) delete(req *restful.Request, res *restful.Response) {
+
+	owner := req.PathParameter("owner")
+	repo := req.PathParameter("repo")
+	buildNumber := req.PathParameter("buildNumber")
+	pipeline, err := findPipeline(owner, repo, b.KVClient)
+
+	if err != nil {
+		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
+		return
+	}
+
+	build, err := findBuild(buildNumber, pipeline, b.KVClient)
+	if err != nil {
+		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find build %s for %s/%s", buildNumber, owner, repo))
+		return
+	}
+
+	build.Delete(b.KVClient, b.MinioClient)
 }
 
 func (b *BuildResource) list(req *restful.Request, res *restful.Response) {
