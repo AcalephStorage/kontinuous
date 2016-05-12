@@ -94,6 +94,31 @@ func main() {
 				},
 			},
 		},
+		{
+			Name: "delete",
+			Subcommands: []cli.Command{
+				{
+					Name:      "pipeline",
+					Usage:     "delete pipeline",
+					ArgsUsage: "<pipeline-name>",
+					Before:    requireNameArg,
+					Action:    deletePipeline,
+				},
+				{
+					Name:      "build",
+					Usage:     "delete build",
+					ArgsUsage: "<pipeline-name>",
+					Flags: []cli.Flag{
+						cli.IntFlag{
+							Name:  "build, b",
+							Usage: "build number, if not provided will not proceed deletion",
+						},
+					},
+					Before: requireNameArg,
+					Action: deleteBuild,
+				},
+			},
+		},
 	}
 	app.Run(os.Args)
 }
@@ -263,4 +288,36 @@ func createBuild(c *cli.Context) {
 	} else {
 		fmt.Printf("building pipeline %s/%s ", owner, repo)
 	}
+}
+
+func deletePipeline(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+	pipelineName := c.Args().First()
+	err = config.DeletePipeline(http.DefaultClient, pipelineName)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("pipeline %s successfully deleted.\n", pipelineName)
+}
+
+func deleteBuild(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+
+	pipelineName := c.Args().First()
+	buildNum := c.String("build")
+	err = config.DeleteBuild(http.DefaultClient, pipelineName, buildNum)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("pipeline %s build #%s successfully deleted.\n", pipelineName, buildNum)
 }
