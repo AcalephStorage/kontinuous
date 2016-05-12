@@ -309,8 +309,8 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 }
 
 func (p *Pipeline) DeletePipeline(kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
-	path := fmt.Sprintf("%s%s", pipelineNamespace, p.ID)
-	pipelinePrefix := fmt.Sprintf("pipelines/%s/", p.ID)
+	path := fmt.Sprintf("%s%s", pipelineNamespace, p.fullName())
+	pipelinePrefix := fmt.Sprintf("pipelines/%s", p.ID)
 	bucket := "kontinuous"
 
 	if err := kvClient.DeleteTree(path); err != nil {

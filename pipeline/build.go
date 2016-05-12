@@ -88,7 +88,7 @@ func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
 
 func (b *Build) Delete(kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
 	path := fmt.Sprintf("%s%s/builds/%d", pipelineNamespace, b.Pipeline, b.Number)
-	buildsPrefix := fmt.Sprintf("pipelines/%s/builds/%d/", b.ID, b.Number)
+	buildsPrefix := fmt.Sprintf("pipelines/%s/builds/%d", b.ID, b.Number)
 	bucket := "kontinuous"
 
 	//remove build info from etcd
