@@ -205,7 +205,7 @@ func (b *BuildResource) delete(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	build.Delete(b.KVClient, b.MinioClient)
+	build.Delete(pipeline.ID, b.KVClient, b.MinioClient)
 }
 
 func (b *BuildResource) list(req *restful.Request, res *restful.Response) {
