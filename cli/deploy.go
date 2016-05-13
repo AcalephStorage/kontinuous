@@ -258,6 +258,70 @@ spec:
               readOnly: true
 `
 
+var dashboardSvc = `
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: kontinuous-ui
+    type: dashboard
+  name: kontinuous-ui
+  namespace: {{.Namespace}}
+spec:
+  ports:
+  - name: dashboard
+    nodePort: 30345
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: kontinuous-ui
+    type: dashboard
+  type: LoadBalancer
+
+`
+
+var dashboardRc = `
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  labels:
+    app: kontinuous-ui
+    type: dashboard
+  name: kontinuous-ui
+  namespace: {{.Namespace}}
+spec:
+  replicas: 1
+  selector:
+    app: kontinuous-ui
+    type: dashboard
+  template:
+    metadata:
+      labels:
+        app: kontinuous-ui
+        type: dashboard
+      name: kontinuous-ui
+      namespace: {{.Namespace}}
+    spec:
+      containers:
+      - env:
+        - name: GITHUB_CLIENT_CALLBACK
+          value: http://{{.DashboardIP}}:5000
+        - name: GITHUB_CLIENT_ID
+          value: {{.GHClient}}
+        - name: KONTINUOUS_API_URL
+          value: http://{{.KontinuousIP}}:8080
+        image: quay.io/acaleph/kontinuous-ui:latest
+        imagePullPolicy: Always
+        name: kontinuous-ui
+        ports:
+        - containerPort: 5000
+          name: dashboard
+
+`
+
 type Deploy struct {
 	Namespace    string
 	AccessKey    string
@@ -265,6 +329,8 @@ type Deploy struct {
 	AuthCode     string
 	SecretData   string
 	KontinuousIP string
+	DashboardIP  string
+	GHClient     string
 }
 
 const (
@@ -350,10 +416,10 @@ func deleteKontinuousResources(path string) error {
 	return nil
 }
 
-func fetchKontinuousIP(namespace string) (string, error) {
+func fetchKontinuousIP(serviceName, namespace string) (string, error) {
 	var ip string
 
-	cmd := fmt.Sprintf(`kubectl get svc kontinuous --namespace=%s -o template --template="{{.status.loadBalancer.ingress}}"`, namespace)
+	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.status.loadBalancer.ingress}}"`, serviceName, namespace)
 	for len(ip) == 0 {
 		out, err := exec.Command("bash", "-c", cmd).Output()
 		if err != nil {
@@ -383,12 +449,13 @@ func RemoveResources() error {
 	return nil
 }
 
-func DeployKontinuous(namespace, accesskey, secretkey, authcode string) error {
+func DeployKontinuous(namespace, accesskey, secretkey, authcode, clientid string) error {
 	deploy := Deploy{
 		Namespace: namespace,
 		AccessKey: accesskey,
 		SecretKey: secretkey,
 		AuthCode:  authcode,
+		GHClient:  clientid,
 	}
 	sData, _ := generateResource(secretData, &deploy)
 	encryptedSecret, _ := encryptSecret(sData)
@@ -398,23 +465,30 @@ func DeployKontinuous(namespace, accesskey, secretkey, authcode string) error {
 	etcdStr, _ := generateResource(etcd, &deploy)
 	registryStr, _ := generateResource(registry, &deploy)
 	kontinuousSvcStr, _ := generateResource(kontinuousService, &deploy)
+	dashboardSvcStr, _ := generateResource(dashboardSvc, &deploy)
 
 	//save string in a file
-	saveToFile(KONTINUOUS_SPECS_FILE, secret, minioStr, etcdStr, registryStr, kontinuousSvcStr)
+	saveToFile(KONTINUOUS_SPECS_FILE, secret, minioStr, etcdStr, registryStr, kontinuousSvcStr, dashboardSvcStr)
 	err := createKontinuousResouces(KONTINUOUS_SPECS_FILE)
 
 	if err != nil {
 		return err
 	}
 
-	ip, _ := fetchKontinuousIP("acaleph")
+	ip, _ := fetchKontinuousIP("kontinuous", deploy.Namespace)
+	dashboardIp, _ := fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
+	deploy.DashboardIP = dashboardIp
 	deploy.KontinuousIP = ip
+
 	kontinuousRcStr, _ := generateResource(kontinuousRC, &deploy)
-	saveToFile(KONTINUOUS_RC_SPEC_FILE, kontinuousRcStr)
+	dashboardRcStr, _ := generateResource(dashboardRc, &deploy)
+
+	saveToFile(KONTINUOUS_RC_SPEC_FILE, kontinuousRcStr, dashboardRcStr)
 	err = createKontinuousResouces(KONTINUOUS_RC_SPEC_FILE)
 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
