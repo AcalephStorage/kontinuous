@@ -119,6 +119,37 @@ func main() {
 				},
 			},
 		},
+		{
+			Name:  "deploy",
+			Usage: "deploy kontinuous app in the cluster",
+			Subcommands: []cli.Command{
+				{
+					Name:   "remove",
+					Usage:  "remove kontinuous app in the cluster",
+					Action: removeDeployedApp,
+				},
+			},
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "namespace",
+					Usage: "Required, kontinuous namespace",
+				},
+				cli.StringFlag{
+					Name:  "accesskey",
+					Usage: "Required, s3 access key",
+				},
+				cli.StringFlag{
+					Name:  "secretkey",
+					Usage: "Required, s3 secret key",
+				},
+				cli.StringFlag{
+					Name:  "authcode",
+					Usage: "Required, jwt authorization code",
+				},
+			},
+
+			Action: deployApp,
+		},
 	}
 	app.Run(os.Args)
 }
@@ -320,4 +351,40 @@ func deleteBuild(c *cli.Context) {
 	}
 
 	fmt.Printf("pipeline %s build #%s successfully deleted.\n", pipelineName, buildNum)
+}
+
+func deployApp(c *cli.Context) {
+	namespace := c.String("namespace")
+	accessKey := c.String("accesskey")
+	secretKey := c.String("secretkey")
+	authCode := c.String("authcode")
+
+	missingFields := false
+	if namespace == "" || accessKey == "" || secretKey == "" || authCode == "" {
+		fmt.Println("missing required fields!")
+		missingFields = true
+
+	}
+
+	if !missingFields {
+		err := DeployKontinuous(namespace, accessKey, secretKey, authCode)
+		if err != nil {
+			fmt.Println("Oops something went wrong. Unable to deploy kontinuous.")
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("Success! Kontinuous is now deployed in the cluster.")
+	}
+}
+
+func removeDeployedApp(c *cli.Context) {
+	err := RemoveResources()
+
+	if err != nil {
+		fmt.Println("Oops something went wrong. Unable to remove kontinuous.")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Success! Kontinuous app has been removed from the cluster. ")
 }
