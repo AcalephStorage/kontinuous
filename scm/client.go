@@ -44,7 +44,8 @@ type Client interface {
 	CreateHook(owner, repo, callback string, events []string) error
 	CreateKey(owner, repo, key, title string) error
 	CreateStatus(owner, repo, sha string, stageId int, stageName, state string) error
-	GetContents(owner, repo, content, ref string) ([]byte, bool)
+	GetFileContent(owner, repo, path, ref string) ([]byte, bool)
+	GetContents(owner, repo, path, ref string) (*RepositoryContent, bool)
 	GetRepository(owner, repo string) (*Repository, bool)
 	ListRepositories(user string) ([]*Repository, error)
 	ParseHook(payload []byte, event string) (*Hook, error)
@@ -60,6 +61,11 @@ type Repository struct {
 	CloneURL      string          `json:"clone_url,omitempty"`
 	DefaultBranch string          `json:"default_branch"`
 	Permissions   map[string]bool `json:"-"`
+}
+
+type RepositoryContent struct {
+	Content *string `json:"content"`
+	SHA     *string `json:"sha,omitempty"`
 }
 
 // IsAdmin determines if the scoped user has admin rights for the repository

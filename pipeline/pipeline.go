@@ -354,7 +354,7 @@ func (p *Pipeline) Validate() error {
 
 // Definition retrieves the pipeline definition from a given reference
 func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
-	file, ok := c.GetContents(p.Owner, p.Repo, PipelineYAML, ref)
+	file, ok := c.GetFileContent(p.Owner, p.Repo, PipelineYAML, ref)
 	if !ok {
 		return nil, fmt.Errorf("%s not found for %s/%s on %s",
 			PipelineYAML,

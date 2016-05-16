@@ -149,7 +149,7 @@ func (s *Stage) Deploy(p *Pipeline, b *Build, c scm.Client) error {
 		ref = b.Branch
 	}
 
-	file, ok := c.GetContents(p.Owner, p.Repo, deployFile, b.Commit)
+	file, ok := c.GetFileContent(p.Owner, p.Repo, deployFile, b.Commit)
 
 	if !ok {
 		return fmt.Errorf("%s not found for %s/%s on %s",

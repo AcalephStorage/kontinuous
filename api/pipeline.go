@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/emicklei/go-restful"
-
 	"github.com/AcalephStorage/kontinuous/kube"
 	ps "github.com/AcalephStorage/kontinuous/pipeline"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
+	"github.com/emicklei/go-restful"
 )
 
 // PipelineResource defines the endpoints of a Pipeline

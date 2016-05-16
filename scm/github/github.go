@@ -74,11 +74,11 @@ func (gc *Client) CreateStatus(owner, repo, ref string, stageId int, stageName, 
 	return nil
 }
 
-// GetContents fetches a file from the given commit or branch
-func (gc *Client) GetContents(owner, repo, content, ref string) ([]byte, bool) {
+// GetFileContent fetches a file from the given commit or branch
+func (gc *Client) GetFileContent(owner, repo, path, ref string) ([]byte, bool) {
 	file, _, _, err := gc.client().Repositories.GetContents(owner,
 		repo,
-		content,
+		path,
 		&github.RepositoryContentGetOptions{ref})
 	if err != nil {
 		return nil, false
@@ -90,6 +90,27 @@ func (gc *Client) GetContents(owner, repo, content, ref string) ([]byte, bool) {
 	}
 
 	return decoded, true
+}
+
+// GetContents gets the metadata and content of a file from the given commit or branch
+func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryContent, bool) {
+	file, _, _, err := gc.client().Repositories.GetContents(owner,
+		repo,
+		path,
+		&github.RepositoryContentGetOptions{ref})
+	if err != nil {
+		return nil, false
+	}
+
+	decoded, err := file.GetContent()
+	if err != nil {
+		return nil, false
+	}
+
+	return &scm.RepositoryContent{
+		Content: &decoded,
+		SHA:     file.SHA,
+	}, true
 }
 
 // GetRepository fetches repository details from GitHub
