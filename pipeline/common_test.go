@@ -235,8 +235,8 @@ func (s MockSCMClient) GetContents(owner, repo, path, ref string) (*scm.Reposito
 	}, true
 }
 
-func (s MockSCMClient) UpdateFile(owner, repo, path, commit string, content []byte) error {
-	return nil
+func (s MockSCMClient) UpdateFile(owner, repo, path, commit string, content []byte) (*scm.RepositoryContent, error) {
+	return &scm.RepositoryContent{}, nil
 }
 
 func (s MockSCMClient) ListRepositories(user string) ([]*scm.Repository, error) {

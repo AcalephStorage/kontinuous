@@ -109,9 +109,9 @@ func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryCon
 }
 
 // UpdateFile commits diff of a file content from a given commit ref
-func (gc *Client) UpdateFile(owner, repo, path, commit string, content []byte) error {
+func (gc *Client) UpdateFile(owner, repo, path, commit string, content []byte) (*scm.RepositoryContent, error) {
 	message := fmt.Sprintf("Update %s", path)
-	_, _, err := gc.client().Repositories.UpdateFile(owner,
+	resp, _, err := gc.client().Repositories.UpdateFile(owner,
 		repo,
 		path,
 		&github.RepositoryContentFileOptions{
@@ -120,9 +120,12 @@ func (gc *Client) UpdateFile(owner, repo, path, commit string, content []byte) e
 			SHA:     &commit,
 		})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	return &scm.RepositoryContent{
+		SHA: resp.Content.SHA,
+	}, nil
 }
 
 // GetRepository fetches repository details from GitHub

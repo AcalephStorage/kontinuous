@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 
@@ -86,7 +87,6 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
 		Param(ws.PathParameter("commit", "commit ref").DataType("string")).
-		Consumes("text/plain").
 		Filter(requireAccessToken))
 
 	buildResource := &BuildResource{
@@ -206,17 +206,22 @@ func (p *PipelineResource) updateDefinition(req *restful.Request, res *restful.R
 	}
 
 	body, _ := ioutil.ReadAll(req.Request.Body)
-	content, err := base64.URLEncoding.DecodeString(string(body))
+	var payload map[string]string
+	if err := json.Unmarshal(body, &payload); err != nil {
+		jsonError(res, http.StatusInternalServerError, err, "Unable to read request payload")
+		return
+	}
+	decodedContent, err := base64.URLEncoding.DecodeString(payload["content"])
 	if err != nil {
-		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to decode %s", string(body)))
+		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to decode %s", payload["content"]))
 		return
 	}
 
-	err = client.UpdateFile(pipeline.Owner, pipeline.Repo, ps.PipelineYAML, commit, content)
+	file, err := client.UpdateFile(pipeline.Owner, pipeline.Repo, ps.PipelineYAML, commit, decodedContent)
 	if err != nil {
 		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to update file %s", ps.PipelineYAML))
 		return
 	}
 
-	res.WriteHeader(http.StatusAccepted)
+	res.WriteAsJson(file)
 }

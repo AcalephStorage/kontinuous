@@ -46,7 +46,7 @@ type Client interface {
 	CreateStatus(owner, repo, sha string, stageID int, stageName, state string) error
 	GetFileContent(owner, repo, path, ref string) ([]byte, bool)
 	GetContents(owner, repo, path, ref string) (*RepositoryContent, bool)
-	UpdateFile(owner, repo, path, commit string, content []byte) error
+	UpdateFile(owner, repo, path, commit string, content []byte) (*RepositoryContent, error)
 	GetRepository(owner, repo string) (*Repository, bool)
 	ListRepositories(user string) ([]*Repository, error)
 	ParseHook(payload []byte, event string) (*Hook, error)
@@ -66,8 +66,8 @@ type Repository struct {
 
 // RepositoryContent contains metadata of a file/directory in a repository
 type RepositoryContent struct {
-	Content *string `json:"content"`
-	SHA     *string `json:"sha,omitempty"`
+	Content *string `json:"content,omitempty"`
+	SHA     *string `json:"sha"`
 }
 
 // IsAdmin determines if the scoped user has admin rights for the repository
