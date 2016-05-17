@@ -4,7 +4,7 @@ const (
 	// EventDashboard indicates a dashboard event
 	EventDashboard = "dashboard"
 
-	// EventDashboard indicates a CLI event
+	// EventCLI indicates a CLI event
 	EventCLI = "cli"
 
 	// EventPing indicates a ping event
@@ -43,9 +43,10 @@ type Client interface {
 	HookExists(owner, repo, url string) bool
 	CreateHook(owner, repo, callback string, events []string) error
 	CreateKey(owner, repo, key, title string) error
-	CreateStatus(owner, repo, sha string, stageId int, stageName, state string) error
+	CreateStatus(owner, repo, sha string, stageID int, stageName, state string) error
 	GetFileContent(owner, repo, path, ref string) ([]byte, bool)
 	GetContents(owner, repo, path, ref string) (*RepositoryContent, bool)
+	UpdateFile(owner, repo, path, commit string, content []byte) error
 	GetRepository(owner, repo string) (*Repository, bool)
 	ListRepositories(user string) ([]*Repository, error)
 	ParseHook(payload []byte, event string) (*Hook, error)
@@ -63,6 +64,7 @@ type Repository struct {
 	Permissions   map[string]bool `json:"-"`
 }
 
+// RepositoryContent contains metadata of a file/directory in a repository
 type RepositoryContent struct {
 	Content *string `json:"content"`
 	SHA     *string `json:"sha,omitempty"`

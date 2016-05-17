@@ -230,7 +230,13 @@ func (s MockSCMClient) GetContents(owner, repo, path, ref string) (*scm.Reposito
 	if !s.success {
 		return nil, false
 	}
-	return &scm.RepositoryContent{validyamlSpec}, true
+	return &scm.RepositoryContent{
+		Content: &validyamlSpec,
+	}, true
+}
+
+func (s MockSCMClient) UpdateFile(owner, repo, path, commit string, content []byte) error {
+	return nil
 }
 
 func (s MockSCMClient) ListRepositories(user string) ([]*scm.Repository, error) {
@@ -241,6 +247,6 @@ func (s MockSCMClient) ParseHook(payload []byte, event string) (*scm.Hook, error
 	return nil, nil
 }
 
-func (s MockSCMClient) CreateStatus(owner, repo, sha string, stageId int, stageName, state string) error {
+func (s MockSCMClient) CreateStatus(owner, repo, sha string, stageID int, stageName, state string) error {
 	return nil
 }

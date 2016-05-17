@@ -57,9 +57,9 @@ func (gc *Client) CreateKey(owner, repo, key, title string) error {
 	return nil
 }
 
-func (gc *Client) CreateStatus(owner, repo, ref string, stageId int, stageName, state string) error {
+func (gc *Client) CreateStatus(owner, repo, ref string, stageID int, stageName, state string) error {
 
-	context := fmt.Sprintf("kontinuous:%d", stageId)
+	context := fmt.Sprintf("kontinuous:%d", stageID)
 
 	status := &github.RepoStatus{
 		State:       &state,
@@ -102,15 +102,27 @@ func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryCon
 		return nil, false
 	}
 
-	decoded, err := file.GetContent()
-	if err != nil {
-		return nil, false
-	}
-
 	return &scm.RepositoryContent{
-		Content: &decoded,
+		Content: file.Content,
 		SHA:     file.SHA,
 	}, true
+}
+
+// UpdateFile commits diff of a file content from a given commit ref
+func (gc *Client) UpdateFile(owner, repo, path, commit string, content []byte) error {
+	message := fmt.Sprintf("Update %s", path)
+	_, _, err := gc.client().Repositories.UpdateFile(owner,
+		repo,
+		path,
+		&github.RepositoryContentFileOptions{
+			Message: &message,
+			Content: content,
+			SHA:     &commit,
+		})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetRepository fetches repository details from GitHub
