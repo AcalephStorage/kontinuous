@@ -84,13 +84,17 @@ A Kubernetes Secret also needs to be defined and mounted to the Pod. The secret 
 {
   "AuthSecret": "base64 encoded auth secret",
   "S3SecretKey": "s3 secret key",
-  "S3AccessKey": "s3 access key"
+  "S3AccessKey": "s3 access key",
+  "GithubClientID": "github client ID",
+  "GithubClientSecret": "github client secret"
 }
 ```
 
 `AuthSecret` is the secret for authenticating requests. This is needed by the clients to communicate with kontinuous through JWT.
 
 `S3SecretKey` and `S3AccessKey` are the keys needed to access minio (or S3).
+
+`GithubClientID` and `GithubClientSecret` are optional and only required for Github only authentication. (See below)
 
 The secret needs to be mounted to the Pod to the path `/.secret`.
 

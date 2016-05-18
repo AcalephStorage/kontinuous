@@ -150,6 +150,10 @@ func main() {
 					Name:  "clientid",
 					Usage: "Required, github client id",
 				},
+				cli.StringFlag{
+					Name:  "clientsecret",
+					Usage: "Required, github client secret",
+				},
 			},
 
 			Action: deployApp,
@@ -363,16 +367,17 @@ func deployApp(c *cli.Context) {
 	secretKey := c.String("secretkey")
 	authCode := c.String("authcode")
 	clientId := c.String("clientid")
+	clientSecret := c.String("clientsecret")
 
 	missingFields := false
-	if namespace == "" || accessKey == "" || secretKey == "" || authCode == "" || clientId == "" {
+	if namespace == "" || accessKey == "" || secretKey == "" || authCode == "" || clientId == "" || clientSecret == "" {
 		fmt.Println("missing required fields!")
 		missingFields = true
 
 	}
 
 	if !missingFields {
-		err := DeployKontinuous(namespace, accessKey, secretKey, authCode, clientId)
+		err := DeployKontinuous(namespace, accessKey, secretKey, authCode, clientId, clientSecret)
 		if err != nil {
 			fmt.Println("Oops something went wrong. Unable to deploy kontinuous.")
 			fmt.Println(err)

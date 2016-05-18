@@ -14,7 +14,9 @@ var secretData = `
 {
   "AuthSecret": "{{.AuthCode}}",
   "S3SecretKey": "{{.SecretKey}}",
-  "S3AccessKey": "{{.AccessKey}}"
+  "S3AccessKey": "{{.AccessKey}}",
+  "GithubClientID": "{{.GHClient}}",
+  "GithubClientSecret": "{{.GHSecret}}"
 }
 
 `
@@ -331,6 +333,7 @@ type Deploy struct {
 	KontinuousIP string
 	DashboardIP  string
 	GHClient     string
+	GHSecret     string
 }
 
 const (
@@ -449,13 +452,15 @@ func RemoveResources() error {
 	return nil
 }
 
-func DeployKontinuous(namespace, accesskey, secretkey, authcode, clientid string) error {
+func DeployKontinuous(namespace, accesskey, secretkey, authcode, clientid, clientsecret string) error {
+	fmt.Println("Deploying Kontinuous...")
 	deploy := Deploy{
 		Namespace: namespace,
 		AccessKey: accesskey,
 		SecretKey: secretkey,
 		AuthCode:  authcode,
 		GHClient:  clientid,
+		GHSecret:  clientsecret,
 	}
 	sData, _ := generateResource(secretData, &deploy)
 	encryptedSecret, _ := encryptSecret(sData)
