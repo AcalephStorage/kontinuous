@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,6 +61,9 @@ spec:
         app: minio
         type: object-store
     spec:
+      volumes:
+        - name: empty-dir
+          emptyDir: {}
       containers:
         - name: minio
           image: minio/minio:latest
@@ -69,6 +73,11 @@ spec:
               value: {{.AccessKey}}
             - name: MINIO_SECRET_KEY
               value: {{.SecretKey}}
+          args:
+            - /data
+          volumeMounts:
+            - name: empty-dir
+              mountPath: /data
           ports:
             - name: service
               containerPort: 9000
@@ -391,14 +400,8 @@ func saveToFile(path string, data ...string) error {
 	return nil
 }
 
-func encryptSecret(secret string) (string, error) {
-	cmd := fmt.Sprintf(`echo -n "%s" | openssl base64 | tr -d "\n"`, secret)
-	out, err := exec.Command("bash", "-c", cmd).Output()
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
-
+func encryptSecret(secret string) string {
+	return base64.StdEncoding.EncodeToString([]byte(secret))
 }
 
 func createKontinuousResouces(path string) error {
@@ -463,8 +466,7 @@ func DeployKontinuous(namespace, accesskey, secretkey, authcode, clientid, clien
 		GHSecret:  clientsecret,
 	}
 	sData, _ := generateResource(secretData, &deploy)
-	encryptedSecret, _ := encryptSecret(sData)
-	deploy.SecretData = encryptedSecret
+	deploy.SecretData = encryptSecret(sData)
 	secret, _ := generateResource(secret, &deploy)
 	minioStr, _ := generateResource(minio, &deploy)
 	etcdStr, _ := generateResource(etcd, &deploy)
