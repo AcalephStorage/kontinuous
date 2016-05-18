@@ -231,7 +231,30 @@ Optional params are:
 
 ### Authentication
 
-#### Github Token
+There are currently two ways of authenticating with kontinuous. One is by using Github's OAuth Web Application Flow and the other one is with JSON Web Tokens.
+
+#### Github OAuth
+
+This is the authorization process used by `kontinuous-ui`. This is a 3 step process detailed [here](https://developer.github.com/v3/oauth/#web-application-flow) with a slightly different variation:
+
+1. Kontinuous needs to be registered as a Github OAuth Application [here](https://github.com/settings/applications/new). 
+
+2. Redirect users to request Github Access (step 1 in web application flow):
+
+```
+GET https://github.com/login/oauth/authorize
+```
+
+3. Send authorization code to Kontinuous:
+
+```
+POST {kontinuous-url}/api/v1/login/github?code={auth_code}&state={state_from_step_1}
+```
+
+This should return a JSON Web Token in the body that can be used to authenticate further requests.
+
+
+#### JSON Web Token
 
 Currently, only Github Repositories are supported. A github token needs to be generated in order to access the repositories. 
 
@@ -242,9 +265,6 @@ Make sure to enable access to the following:
  - repo
  - admin:repo_hook
  - user
-
-
-#### JSON Web Token
 
 The script `scripts/jwt-gen` can generate a JSON Web Token to be used for authentication with Kontinuous. 
 
