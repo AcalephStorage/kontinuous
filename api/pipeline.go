@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 
-	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -71,6 +70,7 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Operation("definition").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
+		Writes(ps.DefinitionFile{}).
 		Filter(requireAccessToken))
 
 	ws.Route(ws.GET("/{owner}/{repo}/definition/{ref}").To(p.definition).
@@ -79,14 +79,15 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
 		Param(ws.PathParameter("ref", "commit or branch").DataType("string")).
+		Writes(ps.DefinitionFile{}).
 		Filter(requireAccessToken))
 
-	ws.Route(ws.POST("/{owner}/{repo}/definition/{commit}").To(p.updateDefinition).
+	ws.Route(ws.PUT("/{owner}/{repo}/definition").To(p.updateDefinition).
 		Doc("Update definition file of the pipeline").
 		Operation("updateDefinition").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
-		Param(ws.PathParameter("commit", "commit ref").DataType("string")).
+		Writes(ps.DefinitionFile{}).
 		Filter(requireAccessToken))
 
 	buildResource := &BuildResource{
@@ -184,8 +185,9 @@ func (p *PipelineResource) definition(req *restful.Request, res *restful.Respons
 		return
 	}
 
-	file, exists := client.GetContents(pipeline.Owner, pipeline.Repo, ps.PipelineYAML, ref)
+	file, exists := pipeline.GetDefinitionFile(client, ref)
 	if !exists {
+		err = fmt.Errorf("Definition file for %s/%s not found.", owner, repo)
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to fetch definition for %s/%s", owner, repo))
 		return
 	}
@@ -194,10 +196,8 @@ func (p *PipelineResource) definition(req *restful.Request, res *restful.Respons
 }
 
 func (p *PipelineResource) updateDefinition(req *restful.Request, res *restful.Response) {
-	client := newSCMClient(req)
 	owner := req.PathParameter("owner")
 	repo := req.PathParameter("repo")
-	commit := req.PathParameter("commit")
 
 	pipeline, err := findPipeline(owner, repo, p.KVClient)
 	if err != nil {
@@ -205,23 +205,22 @@ func (p *PipelineResource) updateDefinition(req *restful.Request, res *restful.R
 		return
 	}
 
+	client := newSCMClient(req)
 	body, _ := ioutil.ReadAll(req.Request.Body)
-	var payload map[string]string
+	type definitionPayload struct {
+		Definition *ps.DefinitionFile `json:"definition"`
+		Commit     map[string]string  `json:"commit"`
+	}
+	payload := &definitionPayload{}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		jsonError(res, http.StatusInternalServerError, err, "Unable to read request payload")
 		return
 	}
-	decodedContent, err := base64.URLEncoding.DecodeString(payload["content"])
+
+	file, err := pipeline.UpdateDefinitionFile(client, payload.Definition, payload.Commit)
 	if err != nil {
-		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to decode %s", payload["content"]))
+		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to update definition file for %s/%s", pipeline.Owner, pipeline.Repo))
 		return
 	}
-
-	file, err := client.UpdateFile(pipeline.Owner, pipeline.Repo, ps.PipelineYAML, commit, decodedContent)
-	if err != nil {
-		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to update file %s", ps.PipelineYAML))
-		return
-	}
-
 	res.WriteAsJson(file)
 }

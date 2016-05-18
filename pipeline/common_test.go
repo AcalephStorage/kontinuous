@@ -235,7 +235,7 @@ func (s MockSCMClient) GetContents(owner, repo, path, ref string) (*scm.Reposito
 	}, true
 }
 
-func (s MockSCMClient) UpdateFile(owner, repo, path, commit string, content []byte) (*scm.RepositoryContent, error) {
+func (s MockSCMClient) UpdateFile(owner, repo, path, blob, message, branch string, content []byte) (*scm.RepositoryContent, error) {
 	return &scm.RepositoryContent{}, nil
 }
 
@@ -248,5 +248,15 @@ func (s MockSCMClient) ParseHook(payload []byte, event string) (*scm.Hook, error
 }
 
 func (s MockSCMClient) CreateStatus(owner, repo, sha string, stageID int, stageName, state string) error {
+	return nil
+}
+
+func (s MockSCMClient) GetHead(owner, repo, branch string) (string, error) {
+	return "", nil
+}
+func (s MockSCMClient) CreateBranch(owner, repo, branchName, baseRef string) (string, error) {
+	return "", nil
+}
+func (s MockSCMClient) CreatePullRequest(owner, repo, baseRef, headRef, title string) error {
 	return nil
 }

@@ -520,3 +520,70 @@ func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) 
 	p.Save(kvClient)
 
 }
+
+// GetDefinitionFile fetches the definition file (PipelineYAML) from the pipeline's repository
+// returns the content (possibly encoded in base64, see scm API) and
+// the SHA of the file (blob)
+func (p *Pipeline) GetDefinitionFile(c scm.Client, ref string) (*DefinitionFile, bool) {
+	file, exists := c.GetContents(p.Owner, p.Repo, PipelineYAML, ref)
+	if !exists {
+		return nil, false
+	}
+	return &DefinitionFile{
+		Content: file.Content,
+		SHA:     file.SHA,
+	}, true
+}
+
+// UpdateDefinitionFile commits the changes of the definition file (PipelineYAML)
+// either directly to the default branch
+// or through a pull request
+func (p *Pipeline) UpdateDefinitionFile(c scm.Client, file *DefinitionFile, commit map[string]string) (*DefinitionFile, error) {
+	source, exists := c.GetRepository(p.Owner, p.Repo)
+	if !exists {
+		return nil, fmt.Errorf("Unable to find repository %s/%s", p.Owner, p.Repo)
+	}
+	defaultBranch := source.DefaultBranch
+	branch := defaultBranch
+
+	message := commit["message"]
+	if len(message) == 0 {
+		message = fmt.Sprintf("Update %s", PipelineYAML)
+	}
+
+	if commit["option"] == "pull_request" {
+		branch = commit["branch_name"]
+		if len(branch) == 0 {
+			return nil, fmt.Errorf("Branch name not provided")
+		}
+
+		head, err := c.GetHead(p.Owner, p.Repo, defaultBranch)
+		if err != nil {
+			return nil, err
+		}
+		_, err = c.CreateBranch(p.Owner, p.Repo, branch, head)
+		if err != nil {
+			return nil, err
+		}
+		// wait for branch to be created (todo: verify existence of branch)
+		time.Sleep(3 * time.Second)
+	}
+
+	decodedContent, err := base64.URLEncoding.DecodeString(*file.Content)
+	if err != nil {
+		return nil, err
+	}
+	updatedFile, err := c.UpdateFile(p.Owner, p.Repo, PipelineYAML, *file.SHA, message, branch, decodedContent)
+	if err != nil {
+		return nil, err
+	}
+
+	if commit["option"] == "pull_request" {
+		err = c.CreatePullRequest(p.Owner, p.Repo, defaultBranch, branch, message)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &DefinitionFile{SHA: updatedFile.SHA}, nil
+}

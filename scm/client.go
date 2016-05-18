@@ -46,10 +46,13 @@ type Client interface {
 	CreateStatus(owner, repo, sha string, stageID int, stageName, state string) error
 	GetFileContent(owner, repo, path, ref string) ([]byte, bool)
 	GetContents(owner, repo, path, ref string) (*RepositoryContent, bool)
-	UpdateFile(owner, repo, path, commit string, content []byte) (*RepositoryContent, error)
+	UpdateFile(owner, repo, path, blob, message, branch string, content []byte) (*RepositoryContent, error)
 	GetRepository(owner, repo string) (*Repository, bool)
 	ListRepositories(user string) ([]*Repository, error)
 	ParseHook(payload []byte, event string) (*Hook, error)
+	GetHead(owner, repo, branch string) (string, error)
+	CreateBranch(owner, repo, branchName, baseRef string) (string, error)
+	CreatePullRequest(owner, repo, baseRef, headRef, title string) error
 }
 
 // Repository holds common repository details from SCMs

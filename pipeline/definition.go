@@ -31,6 +31,12 @@ type Definition struct {
 	Spec       SpecDetails            `json:"spec"`
 }
 
+// DefinitionFile holds repository metadata of the definition file (PipelineYAML)
+type DefinitionFile struct {
+	Content *string `json:"content,omitempty"`
+	SHA     *string `json:"sha"`
+}
+
 func (d *Definition) GetStages() []*Stage {
 	stages := make([]*Stage, len(d.Spec.Template.Stages))
 
