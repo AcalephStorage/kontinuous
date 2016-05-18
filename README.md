@@ -26,13 +26,35 @@ We've got lots more planned, see the [Roadmap](#roadmap) or Github issues to get
 
 ### Getting Started
 
-The script `scripts/kontinuous-deploy` is a quick way of running `kontinuous` in a K8s cluster. The general syntax is:
+Before running Kontinuous, it needs to be added as a github OAuth Application [here](https://github.com/settings/applications/new). The `Client ID` and `Client Secret` will be used in running Kontinuous.
+
+The `kubernetes-cli` can bootstrap a kontinuous setup on a running Kubernetes cluster. This requires `kubectl` to be in the `PATH` and configured to access the cluster. 
 
 ```
-$ kontinuous-deploy --namespace {k8s-namespace} --auth-secret {base64url encoded secret} --s3-access-key {s3 access key} --s3-secret-key {s3 secret key}
+$ kotinuous-cli --namespace {namespace} \
+    --auth-secret {base64 encoded secret} \
+    --github-client-id {github client id} \
+    --github-client-secret {github client secret}
 ```
 
-This will launch `kontinuous` via the locally configured `kubectl` in the given namespace together with `etcd`, `minio`, and a docker `registry`. This expects that the kubernetes cluster supports the LoadBalancer service.
+Parameters:
+
+| parameter              | description                                                                                                                  |
+|------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| --namespace            | The namespace to deploy Kontinuous to. This defaults to `kontinuous`                                                         |
+| --auth-secret          | A base64 encoded secret. This is used by kontinuous to provide JWT for authentication. This can be any base64 encoded string |
+| --github-client-id     | The Github client ID provided when registering kontinuous as a Github OAuth application                                      |
+| --github-client-secret | The Github client secret provided when registering kontinuous as a Github OAuth application                                  |
+
+This will launch the following via `kubectl`:
+
+ - etcd
+ - minio
+ - docker registry
+ - kontinuous
+ - kontinuous-ui
+
+This will launch `kontinuous` via the locally configured `kubectl` in the given namespace together with `etcd`, `minio`, a docker `registry`, and the Kontinuous UI. This expects that the kubernetes cluster supports the LoadBalancer service.
 
 Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). See [below](#running-in-kubernetes) for how to configure secrets.
 
@@ -228,6 +250,9 @@ Optional params are:
 
 `deploy` deploys a Kubernetes Spec file (yaml) to kubernetes. 
 
+---
+# TODO: WIP. This section is about accessing the API. not necessary if using the UI. Might move this to a separate section...(?)
+---
 
 ### Authentication
 
