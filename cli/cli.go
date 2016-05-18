@@ -132,27 +132,28 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "namespace",
-					Usage: "Required, kontinuous namespace",
+					Usage: "Required, Kubernetes namespace to deploy kontinuous",
+					Value: "kontinuous",
 				},
 				cli.StringFlag{
-					Name:  "accesskey",
-					Usage: "Required, s3 access key",
+					Name:  "s3-access-key",
+					Usage: "Required, S3 access key",
 				},
 				cli.StringFlag{
-					Name:  "secretkey",
-					Usage: "Required, s3 secret key",
+					Name:  "s3-secret-key",
+					Usage: "Required, S3 secret key",
 				},
 				cli.StringFlag{
-					Name:  "authcode",
-					Usage: "Required, jwt authorization code",
+					Name:  "auth-secret",
+					Usage: "Required, base64 encoded secret to sign JWT",
 				},
 				cli.StringFlag{
-					Name:  "clientid",
-					Usage: "Required, github client id",
+					Name:  "github-client-id",
+					Usage: "Required, Github Client ID for github authentication",
 				},
 				cli.StringFlag{
-					Name:  "clientsecret",
-					Usage: "Required, github client secret",
+					Name:  "github-client-secret",
+					Usage: "Required, Github Client Secret for github authentication",
 				},
 			},
 
@@ -363,11 +364,11 @@ func deleteBuild(c *cli.Context) {
 
 func deployApp(c *cli.Context) {
 	namespace := c.String("namespace")
-	accessKey := c.String("accesskey")
-	secretKey := c.String("secretkey")
-	authCode := c.String("authcode")
-	clientId := c.String("clientid")
-	clientSecret := c.String("clientsecret")
+	accessKey := c.String("s3-access-key")
+	secretKey := c.String("s3-secret-key")
+	authCode := c.String("auth-secret")
+	clientId := c.String("github-client-id")
+	clientSecret := c.String("github-client-secret")
 
 	missingFields := false
 	if namespace == "" || accessKey == "" || secretKey == "" || authCode == "" || clientId == "" || clientSecret == "" {
