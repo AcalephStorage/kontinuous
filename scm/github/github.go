@@ -109,6 +109,25 @@ func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryCon
 	}, true
 }
 
+// CreateFile commits a new file to a repository
+func (gc *Client) CreateFile(owner, repo, path, message, branch string, content []byte) (*scm.RepositoryContent, error) {
+	if len(message) == 0 {
+		message = fmt.Sprintf("Create %s", path)
+	}
+	resp, _, err := gc.client().Repositories.CreateFile(owner,
+		repo,
+		path,
+		&github.RepositoryContentFileOptions{
+			Message: &message,
+			Content: content,
+			Branch:  &branch,
+		})
+	if err != nil {
+		return nil, err
+	}
+	return &scm.RepositoryContent{SHA: resp.Content.SHA}, nil
+}
+
 // UpdateFile commits diff of a file content from the given blob
 func (gc *Client) UpdateFile(owner, repo, path, blob, message, branch string, content []byte) (*scm.RepositoryContent, error) {
 	if len(message) == 0 {

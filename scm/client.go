@@ -46,6 +46,7 @@ type Client interface {
 	CreateStatus(owner, repo, sha string, stageID int, stageName, state string) error
 	GetFileContent(owner, repo, path, ref string) ([]byte, bool)
 	GetContents(owner, repo, path, ref string) (*RepositoryContent, bool)
+	CreateFile(owner, repo, path, message, branch string, content []byte) (*RepositoryContent, error)
 	UpdateFile(owner, repo, path, blob, message, branch string, content []byte) (*RepositoryContent, error)
 	GetRepository(owner, repo string) (*Repository, bool)
 	ListRepositories(user string) ([]*Repository, error)

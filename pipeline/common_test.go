@@ -235,6 +235,10 @@ func (s MockSCMClient) GetContents(owner, repo, path, ref string) (*scm.Reposito
 	}, true
 }
 
+func (s MockSCMClient) CreateFile(owner, repo, path, message, branch string, content []byte) (*scm.RepositoryContent, error) {
+	return &scm.RepositoryContent{}, nil
+}
+
 func (s MockSCMClient) UpdateFile(owner, repo, path, blob, message, branch string, content []byte) (*scm.RepositoryContent, error) {
 	return &scm.RepositoryContent{}, nil
 }

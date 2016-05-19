@@ -82,8 +82,8 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Writes(ps.DefinitionFile{}).
 		Filter(requireAccessToken))
 
-	ws.Route(ws.PUT("/{owner}/{repo}/definition").To(p.updateDefinition).
-		Doc("Update definition file of the pipeline").
+	ws.Route(ws.POST("/{owner}/{repo}/definition").To(p.updateDefinition).
+		Doc("Update definition file of the pipeline, creates one if it does not exist").
 		Operation("updateDefinition").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
@@ -207,11 +207,10 @@ func (p *PipelineResource) updateDefinition(req *restful.Request, res *restful.R
 
 	client := newSCMClient(req)
 	body, _ := ioutil.ReadAll(req.Request.Body)
-	type definitionPayload struct {
+	payload := new(struct {
 		Definition *ps.DefinitionFile `json:"definition"`
 		Commit     map[string]string  `json:"commit"`
-	}
-	payload := &definitionPayload{}
+	})
 	if err := json.Unmarshal(body, &payload); err != nil {
 		jsonError(res, http.StatusInternalServerError, err, "Unable to read request payload")
 		return
