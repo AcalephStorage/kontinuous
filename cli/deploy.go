@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,14 @@ import (
 	"text/template"
 	"time"
 )
+
+var namespaceData = `
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: {{.Namespace}}
+`
 
 var secretData = `
 {
@@ -22,7 +31,20 @@ var secretData = `
 
 `
 
-var minio = `
+var secret = `
+
+---
+kind: Secret
+apiVersion: v1
+metadata:
+  name: kontinuous-secrets
+  namespace: {{.Namespace}}
+data:
+  kontinuous-secrets: {{.SecretData}}
+  
+`
+
+var minioSvc = `
 ---
 kind: Service
 apiVersion: v1
@@ -40,6 +62,8 @@ spec:
     - name: service
       port: 9000
       targetPort: 9000
+`
+var minioRc = `
 ---
 kind: ReplicationController
 apiVersion: v1
@@ -68,11 +92,6 @@ spec:
         - name: minio
           image: minio/minio:latest
           imagePullPolicy: Always
-          env:
-            - name: MINIO_ACCESS_KEY
-              value: {{.AccessKey}}
-            - name: MINIO_SECRET_KEY
-              value: {{.SecretKey}}
           args:
             - /data
           volumeMounts:
@@ -87,20 +106,7 @@ spec:
             timeoutSeconds: 1
 `
 
-var secret = `
-
----
-kind: Secret
-apiVersion: v1
-metadata:
-  name: kontinuous-secrets
-  namespace: {{.Namespace}}
-data:
-  kontinuous-secrets: {{.SecretData}}
-  
-`
-
-var etcd = `
+var etcdSvc = `
 ---
 kind: Service
 apiVersion: v1
@@ -118,6 +124,9 @@ spec:
     - name: api
       port: 2379
       targetPort: 2379
+`
+
+var etcdRc = `
 ---
 kind: ReplicationController
 apiVersion: v1
@@ -152,7 +161,7 @@ spec:
               containerPort: 2379
 `
 
-var registry = `
+var registrySvc = `
 ---
 kind: Service
 apiVersion: v1
@@ -170,6 +179,9 @@ spec:
     - name: service
       port: 5000
       targetPort: 5000
+`
+
+var registryRc = `
 ---
 kind: ReplicationController
 apiVersion: v1
@@ -201,7 +213,7 @@ spec:
 
 `
 
-var kontinuousService = `
+var kontinuousSvc = `
 ---
 kind: Service
 apiVersion: v1
@@ -222,7 +234,7 @@ spec:
       targetPort: 3005
 `
 
-var kontinuousRC = `
+var kontinuousRc = `
 ---
 kind: ReplicationController
 apiVersion: v1
@@ -282,7 +294,6 @@ metadata:
 spec:
   ports:
   - name: dashboard
-    nodePort: 30345
     port: 5000
     protocol: TCP
     targetPort: 5000
@@ -345,11 +356,6 @@ type Deploy struct {
 	GHSecret     string
 }
 
-const (
-	KONTINUOUS_SPECS_FILE   = "/tmp/kontinuous-specs.yml"
-	KONTINUOUS_RC_SPEC_FILE = "/tmp/kontinuous-rc-spec.yml"
-)
-
 func generateResource(templateStr string, deploy *Deploy) (string, error) {
 
 	template := template.New("kontinuous Template")
@@ -375,7 +381,7 @@ func saveToFile(path string, data ...string) error {
 		defer file.Close()
 	}
 
-	file, err = os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0644)
+	file, err = os.OpenFile(path, os.O_RDWR, 0644)
 	if err != nil {
 		fmt.Println(err.Error())
 		return err
@@ -413,12 +419,21 @@ func createKontinuousResouces(path string) error {
 	return nil
 }
 
-func deleteKontinuousResources(path string) error {
-	cmd := fmt.Sprintf("kubectl delete -f %s", path)
+func deleteKontinuousResources() error {
+	//remove namespace file
+	fmt.Println("Removing Kontinuous resources ... ")
+	cmd := fmt.Sprintf("rm -f /tmp/deploy/APP_NAMESPACE.yml")
 	_, err := exec.Command("bash", "-c", cmd).Output()
+
+	if err != nil {
+		fmt.Println("Unable to remove namespace resource")
+	}
+	cmd = fmt.Sprintf("kubectl delete -f %s", "/tmp/deploy/")
+	result, err := exec.Command("bash", "-c", cmd).Output()
 	if err != nil {
 		return err
 	}
+	fmt.Printf("%s", string(result))
 	return nil
 }
 
@@ -443,59 +458,127 @@ func fetchKontinuousIP(serviceName, namespace string) (string, error) {
 	return ip, nil
 }
 
-func RemoveResources() error {
-	err := deleteKontinuousResources(KONTINUOUS_SPECS_FILE)
+func deployResource(definition string, fileName string, deploy *Deploy) error {
+	resource, _ := generateResource(definition, deploy)
+	resourceArr := strings.Split(fileName, "_")
+	resourceName := resourceArr[0]
+	resourceType := resourceArr[1]
+
+	cmd := fmt.Sprintf("mkdir -p %s", "/tmp/deploy")
+	_, _ = exec.Command("bash", "-c", cmd).Output()
+
+	filePath := fmt.Sprintf("/tmp/deploy/%s.yml", fileName)
+	saveToFile(filePath, resource)
+	//check if it exist
+	cmd = fmt.Sprintf("kubectl get -f %s", filePath)
+	_, err := exec.Command("bash", "-c", cmd).Output()
+	if err == nil {
+		return errors.New(fmt.Sprintf("%s: %s already exists \n", resourceType, resourceName))
+	}
+
+	err = createKontinuousResouces(filePath)
 	if err != nil {
+		fmt.Sprintf("Unable to deploy resource: %s \n", err)
 		return err
 	}
-	err = deleteKontinuousResources(KONTINUOUS_RC_SPEC_FILE)
+	fmt.Printf("Successfully deployed %s - %s \n", resourceName, resourceType)
+	return nil
+}
+
+func getS3Details(deploy *Deploy) error {
+
+	var podName string
+	cmd := fmt.Sprintf(`kubectl get po --namespace=%s -l app=minio,type=object-store --no-headers | awk '{print $1}'`, deploy.Namespace)
+	waitingTime := 0
+
+	for len(podName) == 0 && waitingTime < 30 {
+		pod, _ := exec.Command("bash", "-c", cmd).Output()
+		podName = string(pod)
+		time.Sleep(2 * time.Second)
+		waitingTime += 2
+	}
+
+	if len(podName) == 0 {
+		return errors.New("Unable to Deploy Kontinuous. Dependency Minio Storage is unavailable")
+	}
+
+	podName = strings.TrimSpace(podName)
+	cmd = fmt.Sprintf(`kubectl logs --namespace=%s %s | grep AccessKey | awk '{print $2}'`, deploy.Namespace, podName)
+	s3AccessKey, err := exec.Command("bash", "-c", cmd).Output()
 	if err != nil {
+		fmt.Println(err.Error())
+		return errors.New("Unable to Deploy Kontinuous. Dependency Minio Storage Access Key is unavailable")
+	}
+
+	deploy.AccessKey = strings.TrimSpace(string(s3AccessKey))
+	cmd = fmt.Sprintf(`kubectl logs --namespace=%s %s | grep AccessKey | awk '{print $4}'`, deploy.Namespace, podName)
+	s3AccessSecret, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		return errors.New("Unable to Deploy Kontinuous. Dependency Minio Storage Secret Key is unavailable")
+	}
+
+	deploy.SecretKey = strings.TrimSpace(string(s3AccessSecret))
+	return nil
+}
+
+func RemoveResources() error {
+	err := deleteKontinuousResources()
+	if err != nil {
+		fmt.Printf("Unable to remove Kontinuous resources.  %s \n", err.Error())
 		return err
 	}
 	return nil
 }
 
-func DeployKontinuous(namespace, accesskey, secretkey, authcode, clientid, clientsecret string) error {
-	fmt.Println("Deploying Kontinuous...")
+func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error {
+	fmt.Println("Deploying Kontinuous resources ...")
 	deploy := Deploy{
 		Namespace: namespace,
-		AccessKey: accesskey,
-		SecretKey: secretkey,
 		AuthCode:  authcode,
 		GHClient:  clientid,
 		GHSecret:  clientsecret,
 	}
+
+	deployResource(namespaceData, "APP_NAMESPACE", &deploy)
+	deployResource(minioSvc, "MINIO_SVC", &deploy)
+	deployResource(minioRc, "MINIO_RC", &deploy)
+	deployResource(etcdSvc, "ETCD_SVC", &deploy)
+	deployResource(etcdRc, "ETCD_RC", &deploy)
+	deployResource(registrySvc, "REGISTRY_SVC", &deploy)
+	deployResource(registryRc, "REGISTRY_RC", &deploy)
+	deployResource(kontinuousSvc, "KONTINUOUS_SVC", &deploy)
+	deployResource(dashboardSvc, "DASHBOARD_SVC", &deploy)
+
+	err := getS3Details(&deploy)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
 	sData, _ := generateResource(secretData, &deploy)
 	deploy.SecretData = encryptSecret(sData)
-	secret, _ := generateResource(secret, &deploy)
-	minioStr, _ := generateResource(minio, &deploy)
-	etcdStr, _ := generateResource(etcd, &deploy)
-	registryStr, _ := generateResource(registry, &deploy)
-	kontinuousSvcStr, _ := generateResource(kontinuousService, &deploy)
-	dashboardSvcStr, _ := generateResource(dashboardSvc, &deploy)
-
-	//save string in a file
-	saveToFile(KONTINUOUS_SPECS_FILE, secret, minioStr, etcdStr, registryStr, kontinuousSvcStr, dashboardSvcStr)
-	err := createKontinuousResouces(KONTINUOUS_SPECS_FILE)
-
-	if err != nil {
-		return err
-	}
+	deployResource(secret, "APP_SECRET", &deploy)
 
 	ip, _ := fetchKontinuousIP("kontinuous", deploy.Namespace)
 	dashboardIp, _ := fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
 	deploy.DashboardIP = dashboardIp
 	deploy.KontinuousIP = ip
 
-	kontinuousRcStr, _ := generateResource(kontinuousRC, &deploy)
-	dashboardRcStr, _ := generateResource(dashboardRc, &deploy)
-
-	saveToFile(KONTINUOUS_RC_SPEC_FILE, kontinuousRcStr, dashboardRcStr)
-	err = createKontinuousResouces(KONTINUOUS_RC_SPEC_FILE)
+	err = deployResource(kontinuousRc, "KONTINUOUS_RC", &deploy)
 
 	if err != nil {
+		fmt.Println("Unable to deploy Kontinuous Deploy Replication Controller \n %s", err.Error())
 		return err
 	}
+	err = deployResource(dashboardRc, "DASHBOARD_RC", &deploy)
+	if err != nil {
+		fmt.Printf("Unable to deploy Kontinuous UI Replication Controller \n %s", err.Error())
+		return err
+	}
+
+	fmt.Println("_____________________________________________________________\n")
+	fmt.Printf("Kontinuous API : http://%s:8080 \n", deploy.KontinuousIP)
+	fmt.Printf("Kontinuous Dashboard : http://%s:5000 \n", deploy.DashboardIP)
+	fmt.Println("_____________________________________________________________\n")
 
 	return nil
 }
