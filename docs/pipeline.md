@@ -45,9 +45,6 @@ spec:
           external_registry: quay.io
           external_image_name: acaleph/kontinuous
           require_credentials: "TRUE"
-          username: user        # taken from secret
-          password: password    # taken from secret
-          email: email          # taken from secret
 ```
 
 Some important fields on the spec:
@@ -136,7 +133,7 @@ Optional params:
 
 | Parameter            | Description                                      |
 |----------------------|--------------------------------------------------|
-| require_crendentials | true/false. flag to require registry credentials |
+| require_crendentials | TRUE/FALSE. flag to require registry credentials |
 
 Required secrets:
 

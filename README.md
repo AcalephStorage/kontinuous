@@ -53,11 +53,45 @@ Once a public IP for `kontinuous-ui` is available, the Github OAuth Application 
 
 Alternatively, for more customization, a sample yaml file for running kontinuous and its dependencies in Kubernetes can be found [here](./k8s-spec.yml.example). More details can be found [here](docs/setup.md).
 
-Once running, add a [.pipeline.yml](#pipeline-spec) to the root of your Github repo and configure the webhooks. More details about pipeline spec creation can be found [here](docs/pipeline.md).
+Once running, add a [.pipeline.yml](#pipeline-spec) to the root of your Github repo and configure the webhooks. 
 
 Example pipelines can be found in [/examples](./examples)
 
 The [CLI client](#clients) or [API](#api) can be used to view build status or logs.
+
+## Pipeline Specification
+
+Pipeline specification should be at the root directory of the repository. This defines the stages of the builds. More details about pipeline spec creation can be found [here](docs/pipeline.md).
+
+```yaml
+---
+kind: Pipeline
+apiVersion: v1alpha1
+metadata:
+  name: kontinuous
+  namespace: acaleph
+spec:
+  selector:
+    matchLabels:
+      app: kontinuous
+      type: ci-cd
+  template:
+    metadata:
+      name: kontinuous
+      labels:
+        app: kontinuous
+        type: ci-cd
+    notif:
+      - type: slack
+    secrets:
+      - notifcreds
+      - docker-credentials
+    stages:
+      - name: Build Docker Image
+        type: docker_build
+```
+
+This example only has one stage, build a docker image.
 
 ## Clients
 
