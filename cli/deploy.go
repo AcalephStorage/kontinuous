@@ -41,7 +41,7 @@ metadata:
   namespace: {{.Namespace}}
 data:
   kontinuous-secrets: {{.SecretData}}
-  
+
 `
 
 var minioSvc = `
@@ -65,8 +65,8 @@ spec:
 `
 var minioRc = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: minio
   namespace: {{.Namespace}}
@@ -128,8 +128,8 @@ spec:
 
 var etcdRc = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: etcd
   namespace: {{.Namespace}}
@@ -183,8 +183,8 @@ spec:
 
 var registryRc = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: registry
   namespace: {{.Namespace}}
@@ -236,8 +236,8 @@ spec:
 
 var kontinuousRc = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: kontinuous
   namespace: {{.Namespace}}
@@ -306,8 +306,8 @@ spec:
 
 var dashboardRc = `
 ---
-apiVersion: v1
-kind: ReplicationController
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   labels:
     app: kontinuous-ui
@@ -411,7 +411,7 @@ func encryptSecret(secret string) string {
 }
 
 func createKontinuousResouces(path string) error {
-	cmd := fmt.Sprintf("kubectl create -f %s", path)
+	cmd := fmt.Sprintf("kubectl apply -f %s", path)
 	_, err := exec.Command("bash", "-c", cmd).Output()
 	if err != nil {
 		return err
@@ -440,6 +440,7 @@ func deleteKontinuousResources() error {
 func fetchKontinuousIP(serviceName, namespace string) (string, error) {
 	var ip string
 
+	// TODO: test out {{range .status.loadBalancer.ingress }}{{.ip}}{{end}}
 	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.status.loadBalancer.ingress}}"`, serviceName, namespace)
 	for len(ip) == 0 {
 		out, err := exec.Command("bash", "-c", cmd).Output()
@@ -473,7 +474,7 @@ func deployResource(definition string, fileName string, deploy *Deploy) error {
 	cmd = fmt.Sprintf("kubectl get -f %s", filePath)
 	_, err := exec.Command("bash", "-c", cmd).Output()
 	if err == nil {
-		return errors.New(fmt.Sprintf("%s: %s already exists \n", resourceType, resourceName))
+		fmt.Sprintf("%s: %s already exists, applying resource again... \n", resourceType, resourceName)
 	}
 
 	err = createKontinuousResouces(filePath)
@@ -566,12 +567,12 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	err = deployResource(kontinuousRc, "KONTINUOUS_RC", &deploy)
 
 	if err != nil {
-		fmt.Println("Unable to deploy Kontinuous Deploy Replication Controller \n %s", err.Error())
+		fmt.Println("Unable to deploy Kontinuous Deployment \n %s", err.Error())
 		return err
 	}
 	err = deployResource(dashboardRc, "DASHBOARD_RC", &deploy)
 	if err != nil {
-		fmt.Printf("Unable to deploy Kontinuous UI Replication Controller \n %s", err.Error())
+		fmt.Printf("Unable to deploy Kontinuous UI Deployment \n %s", err.Error())
 		return err
 	}
 
