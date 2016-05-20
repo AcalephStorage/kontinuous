@@ -20,7 +20,7 @@ func NewMinioClient(host, accessKey, secretKey string) (*MinioClient, error) {
 		fqdn = h[0]
 	}
 
-	client, err := minio.NewV4(fqdn, accessKey, secretKey, true)
+	client, err := minio.NewV4(fqdn, accessKey, secretKey, false)
 	if err != nil {
 		return nil, err
 	}
