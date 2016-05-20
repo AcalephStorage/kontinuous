@@ -115,8 +115,8 @@ func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) 
 		Path:   "login/oauth/access_token",
 	}
 	q := reqUrl.Query()
-	q.Set("client_id", os.Getenv("GH_CLIENT_ID"))
-	q.Set("client_secret", os.Getenv("GH_CLIENT_SECRET"))
+	q.Set("client_id", os.Getenv("GITHUB_CLIENT_ID"))
+	q.Set("client_secret", os.Getenv("GITHUB_CLIENT_SECRET"))
 	q.Set("code", authCode)
 	q.Set("state", state)
 	reqUrl.RawQuery = q.Encode()

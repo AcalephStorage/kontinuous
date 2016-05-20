@@ -217,6 +217,24 @@ func (c *Config) CreateBuild(client *http.Client, owner, repo string) error {
 	return nil
 }
 
+func (c *Config) DeletePipeline(client *http.Client, pipelineName string) error {
+	endpoint := fmt.Sprintf("/api/v1/pipelines/%s", pipelineName)
+	_, err := c.sendAPIRequest(client, "DELETE", endpoint, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Config) DeleteBuild(client *http.Client, pipelineName string, buildNumber string) error {
+	endpoint := fmt.Sprintf("/api/v1/pipelines/%s/builds/%v", pipelineName, buildNumber)
+	_, err := c.sendAPIRequest(client, "DELETE", endpoint, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Config) validate() error {
 	missing := []string{}
 	if len(c.Host) == 0 {

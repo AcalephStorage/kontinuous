@@ -94,6 +94,84 @@ func main() {
 				},
 			},
 		},
+		{
+			Name: "delete",
+			Subcommands: []cli.Command{
+				{
+					Name:      "pipeline",
+					Usage:     "delete pipeline",
+					ArgsUsage: "<pipeline-name>",
+					Before:    requireNameArg,
+					Action:    deletePipeline,
+				},
+				{
+					Name:      "build",
+					Usage:     "delete build",
+					ArgsUsage: "<pipeline-name>",
+					Flags: []cli.Flag{
+						cli.IntFlag{
+							Name:  "build, b",
+							Usage: "build number, if not provided will not proceed deletion",
+						},
+					},
+					Before: requireNameArg,
+					Action: deleteBuild,
+				},
+			},
+		},
+		{
+			Name:  "deploy",
+			Usage: "deploy kontinuous app in the cluster",
+			Subcommands: []cli.Command{
+				{
+					Name:   "remove",
+					Usage:  "remove Kontinuous resources in the cluster",
+					Action: removeDeployedApp,
+				},
+			},
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "namespace",
+					Usage: "Required, Kubernetes namespace to deploy Kontinuous",
+					Value: "kontinuous",
+				},
+				cli.StringFlag{
+					Name:  "auth-secret",
+					Usage: "Required, base64 encoded secret to sign JWT",
+				},
+				cli.StringFlag{
+					Name:  "github-client-id",
+					Usage: "Required, Github Client ID for Github authentication",
+				},
+				cli.StringFlag{
+					Name:  "github-client-secret",
+					Usage: "Required, Github Client Secret for Github authentication",
+				},
+			},
+
+			Action: deployApp,
+		},
+		{
+			Name:  "init",
+			Usage: "create and save initial .pipeline.yml in your repository",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "namespace",
+					Usage: "Required, Kubernetes namespace to deploy Kontinuous",
+					Value: "kontinuous",
+				},
+				cli.StringFlag{
+					Name:  "repository, repo, r",
+					Usage: "Required, Github repository name ",
+				},
+				cli.StringFlag{
+					Name:  "owner, o",
+					Usage: "Required, Github owner name",
+				},
+			},
+
+			Action: initialize,
+		},
 	}
 	app.Run(os.Args)
 }
@@ -263,4 +341,96 @@ func createBuild(c *cli.Context) {
 	} else {
 		fmt.Printf("building pipeline %s/%s ", owner, repo)
 	}
+}
+
+func deletePipeline(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+	pipelineName := c.Args().First()
+	err = config.DeletePipeline(http.DefaultClient, pipelineName)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("pipeline %s successfully deleted.\n", pipelineName)
+}
+
+func deleteBuild(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+
+	pipelineName := c.Args().First()
+	buildNum := c.String("build")
+	err = config.DeleteBuild(http.DefaultClient, pipelineName, buildNum)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("pipeline %s build #%s successfully deleted.\n", pipelineName, buildNum)
+}
+
+func deployApp(c *cli.Context) {
+	namespace := c.String("namespace")
+	authCode := c.String("auth-secret")
+	clientId := c.String("github-client-id")
+	clientSecret := c.String("github-client-secret")
+
+	missingFields := false
+	if namespace == "" || authCode == "" || clientId == "" || clientSecret == "" {
+		missingFields = true
+	}
+
+	if !missingFields {
+		err := DeployKontinuous(namespace, authCode, clientId, clientSecret)
+		if err != nil {
+			fmt.Println("Missing fields. Unable to deploy Kontinuous.")
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("Success! Kontinuous is now deployed in the cluster.")
+	}
+}
+
+func initialize(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+	namespace := c.String("namespace")
+	owner := c.String("owner")
+	repository := c.String("repository")
+	token := config.Token
+
+	missingFields := false
+	if namespace == "" || owner == "" || repository == "" {
+		missingFields = true
+	}
+
+	if !missingFields {
+		err := Init(namespace, owner, repository, token)
+		if err != nil {
+			fmt.Println("Missing fields. Unable to initialize Kontinuous in the repository")
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		fmt.Println("Success! Initialization complete.")
+	}
+}
+
+func removeDeployedApp(c *cli.Context) {
+	err := RemoveResources()
+
+	if err != nil {
+		fmt.Println("Unable to remove kontinuous.")
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Success! Kontinuous resources has been removed from the cluster. ")
 }

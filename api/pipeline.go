@@ -63,6 +63,15 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Filter(authenticate).
 		Filter(requireAccessToken))
 
+	ws.Route(ws.DELETE("/{owner}/{repo}").To(p.delete).
+		Doc("Delete pipeline").
+		Operation("delete").
+		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
+		Param(ws.PathParameter("repo", "repository name").DataType("string")).
+		Writes(ps.Pipeline{}).
+		Filter(authenticate).
+		Filter(requireAccessToken))
+
 	ws.Route(ws.GET("/{owner}/{repo}/definition").To(p.definition).
 		Doc("Get pipeline details of the repository").
 		Operation("definition").
@@ -124,6 +133,24 @@ func (p *PipelineResource) create(req *restful.Request, res *restful.Response) {
 	}
 
 	res.WriteHeaderAndEntity(http.StatusCreated, pipeline)
+}
+
+func (p *PipelineResource) delete(req *restful.Request, res *restful.Response) {
+	owner := req.PathParameter("owner")
+	repo := req.PathParameter("repo")
+	pipeline, err := findPipeline(owner, repo, p.KVClient)
+	if err != nil {
+		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
+		return
+	}
+
+	if err := pipeline.DeletePipeline(p.KVClient, p.MinioClient); err != nil {
+		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to delete pipeline %s/%s", owner, repo))
+		return
+	}
+
+	res.WriteHeader(http.StatusOK)
+
 }
 
 func (p *PipelineResource) list(req *restful.Request, res *restful.Response) {
