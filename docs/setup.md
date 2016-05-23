@@ -39,7 +39,7 @@ The following environment variables needs to be defined:
 |----------------------|-----------------------------------------|------------------------|
 | KV_ADDRESS           | The etcd address                        | etcd:2379              |
 | S3_URL               | The minio address                       | http://minio:9000      |
-| KONTINUOUS_URL       | The address where kontinuous is running | http://kontinuous:3005 |
+| KONTINUOUS_URL       | The address where kontinuous is running | http://kontinuous:8080 |
 | INTERNAL_REGISTRY    | The internal registry address           | internal-registry:5000 |
 
 ### Secrets
@@ -75,4 +75,14 @@ GithubClientID and GithubClientSecret are optional. They are needed if running K
 ### Ports
 
 Kontinuous uses port `3005`. This needs to be exposed.
+
+
+## Notes
+
+Kontinuous internal registry uses Cluster IP. Should there be any changes on the IP address, please execute the following command:
+
+```
+kubectl apply -f < KONTINUOUS_SPEC_FILE.yml >
+```
+
 

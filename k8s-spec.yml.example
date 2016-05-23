@@ -11,6 +11,59 @@ data:
 kind: Service
 apiVersion: v1
 metadata:
+  name: etcd
+  namespace: acaleph
+  labels:
+    app: etcd
+    type: kv
+spec:
+  selector:
+    app: etcd
+    type: kv
+  ports:
+    - name: api
+      port: 2379
+      targetPort: 2379
+
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: etcd
+  namespace: acaleph
+  labels:
+    app: etcd
+    type: kv
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd
+      type: kv
+  template:
+    metadata:
+      labels:
+        app: etcd
+        type: kv
+    spec:
+      containers:
+        - name: etcd
+          image: quay.io/coreos/etcd:v2.2.2
+          imagePullPolicy: Always
+          args:
+            - --listen-client-urls
+            - http://0.0.0.0:2379
+            - --advertise-client-urls
+            - http://0.0.0.0:2379
+          ports:
+            - name: api
+              containerPort: 2379
+
+---
+kind: Service
+apiVersion: v1
+metadata:
   name: kontinuous
   namespace: acaleph
   labels:
@@ -27,8 +80,8 @@ spec:
       targetPort: 3005
     
 ---
-kind: ReplicationController
-apiVersion: v1
+kind: Deployment
+apiVersion: extensions/v1beta1
 metadata:
   name: kontinuous
   namespace: acaleph
@@ -38,8 +91,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: kontinuous
-    type: ci-cd
+    matchLabels:
+      app: kontinuous
+      type: ci-cd
   template:
     metadata:
       labels:
@@ -51,17 +105,6 @@ spec:
           secret:
             secretName: kontinuous-secrets
       containers:
-        - name: etcd
-          image: quay.io/coreos/etcd:v2.2.2
-          imagePullPolicy: Always
-          args:
-            - --listen-client-urls
-            - http://0.0.0.0:2379
-            - --advertise-client-urls
-            - http://0.0.0.0:2379
-          ports:
-            - name: api
-              containerPort: 2379
         - name: acaleph-deploy
           image: quay.io/acaleph/kontinuous:latest
           imagePullPolicy: Always
@@ -70,13 +113,13 @@ spec:
               containerPort: 3005
           env:
             - name: KV_ADDRESS
-              value: localhost:2379
+              value: etcd:2379
             - name: S3_URL
-              value: http://minio:9000
+              value: http://minio.acaleph:9000
             - name: KONTINUOUS_URL
-              value: http://kontinuous:8080
+              value: http://{{kontinuous}}:8080
             - name: INTERNAL_REGISTRY
-              value: internal-registry:5000
+              value: {{internal-registry}}:5000
           volumeMounts:
             - name: kontinuous-secrets
               mountPath: /.secret
