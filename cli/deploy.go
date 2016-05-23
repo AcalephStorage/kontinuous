@@ -41,7 +41,7 @@ metadata:
   namespace: {{.Namespace}}
 data:
   kontinuous-secrets: {{.SecretData}}
-  
+
 `
 
 var minioSvc = `
@@ -63,10 +63,10 @@ spec:
       port: 9000
       targetPort: 9000
 `
-var minioRc = `
+var minioDep = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: minio
   namespace: {{.Namespace}}
@@ -76,8 +76,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: minio
-    type: object-store
+    matchLabels:
+      app: minio
+      type: object-store
   template:
     metadata:
       name: minio
@@ -126,10 +127,10 @@ spec:
       targetPort: 2379
 `
 
-var etcdRc = `
+var etcdDep = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: etcd
   namespace: {{.Namespace}}
@@ -139,8 +140,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: etcd
-    type: kv
+    matchLabels:
+      app: etcd
+      type: kv
   template:
     metadata:
       labels:
@@ -181,10 +183,10 @@ spec:
       targetPort: 5000
 `
 
-var registryRc = `
+var registryDep = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: registry
   namespace: {{.Namespace}}
@@ -194,8 +196,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: registry
-    type: storage
+    matchLabels:
+      app: registry
+      type: storage
   template:
     metadata:
       name: registry
@@ -234,10 +237,10 @@ spec:
       targetPort: 3005
 `
 
-var kontinuousRc = `
+var kontinuousDep = `
 ---
-kind: ReplicationController
-apiVersion: v1
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   name: kontinuous
   namespace: {{.Namespace}}
@@ -247,8 +250,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: kontinuous
-    type: ci-cd
+    matchLabels:
+      app: kontinuous
+      type: ci-cd
   template:
     metadata:
       labels:
@@ -267,11 +271,11 @@ spec:
             - name: KV_ADDRESS
               value: etcd:2379
             - name: S3_URL
-              value: http://minio:9000
+              value: http://minio.{{.Namespace}}:9000
             - name: KONTINUOUS_URL
               value: http://{{.KontinuousIP}}:8080
             - name: INTERNAL_REGISTRY
-              value: registry:5000
+              value: registry.{{.Namespace}}:5000
           ports:
             - name: api
               containerPort: 3005
@@ -304,10 +308,10 @@ spec:
 
 `
 
-var dashboardRc = `
+var dashboardDep = `
 ---
-apiVersion: v1
-kind: ReplicationController
+apiVersion: extensions/v1beta1
+kind: Deployment
 metadata:
   labels:
     app: kontinuous-ui
@@ -317,8 +321,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: kontinuous-ui
-    type: dashboard
+    matchLabels:
+      app: kontinuous-ui
+      type: dashboard
   template:
     metadata:
       labels:
@@ -411,7 +416,7 @@ func encryptSecret(secret string) string {
 }
 
 func createKontinuousResouces(path string) error {
-	cmd := fmt.Sprintf("kubectl create -f %s", path)
+	cmd := fmt.Sprintf("kubectl apply -f %s", path)
 	_, err := exec.Command("bash", "-c", cmd).Output()
 	if err != nil {
 		return err
@@ -440,6 +445,7 @@ func deleteKontinuousResources() error {
 func fetchKontinuousIP(serviceName, namespace string) (string, error) {
 	var ip string
 
+	// TODO: test out {{range .status.loadBalancer.ingress }}{{.ip}}{{end}}
 	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.status.loadBalancer.ingress}}"`, serviceName, namespace)
 	for len(ip) == 0 {
 		out, err := exec.Command("bash", "-c", cmd).Output()
@@ -473,7 +479,7 @@ func deployResource(definition string, fileName string, deploy *Deploy) error {
 	cmd = fmt.Sprintf("kubectl get -f %s", filePath)
 	_, err := exec.Command("bash", "-c", cmd).Output()
 	if err == nil {
-		return errors.New(fmt.Sprintf("%s: %s already exists \n", resourceType, resourceName))
+		fmt.Sprintf("%s: %s already exists, applying resource again... \n", resourceType, resourceName)
 	}
 
 	err = createKontinuousResouces(filePath)
@@ -541,11 +547,11 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 
 	deployResource(namespaceData, "APP_NAMESPACE", &deploy)
 	deployResource(minioSvc, "MINIO_SVC", &deploy)
-	deployResource(minioRc, "MINIO_RC", &deploy)
+	deployResource(minioDep, "MINIO_DEPLOYMENT", &deploy)
 	deployResource(etcdSvc, "ETCD_SVC", &deploy)
-	deployResource(etcdRc, "ETCD_RC", &deploy)
+	deployResource(etcdDep, "ETCD_DEPLOYMENT", &deploy)
 	deployResource(registrySvc, "REGISTRY_SVC", &deploy)
-	deployResource(registryRc, "REGISTRY_RC", &deploy)
+	deployResource(registryDep, "REGISTRY_DEPLOYMENT", &deploy)
 	deployResource(kontinuousSvc, "KONTINUOUS_SVC", &deploy)
 	deployResource(dashboardSvc, "DASHBOARD_SVC", &deploy)
 
@@ -563,15 +569,15 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	deploy.DashboardIP = dashboardIp
 	deploy.KontinuousIP = ip
 
-	err = deployResource(kontinuousRc, "KONTINUOUS_RC", &deploy)
+	err = deployResource(kontinuousDep, "KONTINUOUS_DEPLOYMENT", &deploy)
 
 	if err != nil {
-		fmt.Println("Unable to deploy Kontinuous Deploy Replication Controller \n %s", err.Error())
+		fmt.Println("Unable to deploy Kontinuous Deployment \n %s", err.Error())
 		return err
 	}
-	err = deployResource(dashboardRc, "DASHBOARD_RC", &deploy)
+	err = deployResource(dashboardDep, "DASHBOARD_DEPLOYMENT", &deploy)
 	if err != nil {
-		fmt.Printf("Unable to deploy Kontinuous UI Replication Controller \n %s", err.Error())
+		fmt.Printf("Unable to deploy Kontinuous UI Deployment \n %s", err.Error())
 		return err
 	}
 
