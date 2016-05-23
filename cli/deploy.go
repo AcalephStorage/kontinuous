@@ -275,7 +275,7 @@ spec:
             - name: KONTINUOUS_URL
               value: http://{{.KontinuousIP}}:8080
             - name: INTERNAL_REGISTRY
-              value: registry.{{.Namespace}}:5000
+              value: {{.RegistryIP}}:5000
           ports:
             - name: api
               containerPort: 3005
@@ -357,6 +357,7 @@ type Deploy struct {
 	SecretData   string
 	KontinuousIP string
 	DashboardIP  string
+	RegistryIP   string
 	GHClient     string
 	GHSecret     string
 }
@@ -457,6 +458,27 @@ func fetchKontinuousIP(serviceName, namespace string) (string, error) {
 		if !strings.Contains(outStr, "<no value>") && !strings.Contains(outStr, "<none>") {
 			ipStr := strings.TrimPrefix(outStr, "[map[ip:")
 			ip = strings.TrimSuffix(ipStr, "]]")
+		} else {
+			time.Sleep(5 * time.Second)
+		}
+	}
+	return ip, nil
+}
+
+func fetchClusterIP(serviceName, namespace string) (string, error) {
+	var ip string
+
+	// TODO: test out {{range .status.loadBalancer.ingress }}{{.ip}}{{end}}
+	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.spec.clusterIP}}"`, serviceName, namespace)
+	for len(ip) == 0 {
+		out, err := exec.Command("bash", "-c", cmd).Output()
+		if err != nil {
+			return "", err
+		}
+
+		outStr := string(out)
+		if !strings.Contains(outStr, "<no value>") && !strings.Contains(outStr, "<none>") {
+			ip = strings.TrimSpace(outStr)
 		} else {
 			time.Sleep(5 * time.Second)
 		}
@@ -566,8 +588,11 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 
 	ip, _ := fetchKontinuousIP("kontinuous", deploy.Namespace)
 	dashboardIp, _ := fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
+	registryIp, _ := fetchClusterIP("registry", deploy.Namespace)
+
 	deploy.DashboardIP = dashboardIp
 	deploy.KontinuousIP = ip
+	deploy.RegistryIP = registryIp
 
 	err = deployResource(kontinuousDep, "KONTINUOUS_DEPLOYMENT", &deploy)
 
