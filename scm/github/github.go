@@ -6,6 +6,7 @@ import (
 
 	"encoding/json"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 
@@ -57,9 +58,9 @@ func (gc *Client) CreateKey(owner, repo, key, title string) error {
 	return nil
 }
 
-func (gc *Client) CreateStatus(owner, repo, ref string, stageId int, stageName, state string) error {
+func (gc *Client) CreateStatus(owner, repo, ref string, stageID int, stageName, state string) error {
 
-	context := fmt.Sprintf("kontinuous:%d", stageId)
+	context := fmt.Sprintf("kontinuous:%d", stageID)
 
 	status := &github.RepoStatus{
 		State:       &state,
@@ -74,11 +75,11 @@ func (gc *Client) CreateStatus(owner, repo, ref string, stageId int, stageName, 
 	return nil
 }
 
-// GetContents fetches a file from the given commit or branch
-func (gc *Client) GetContents(owner, repo, content, ref string) ([]byte, bool) {
+// GetFileContent fetches a file from the given commit or branch
+func (gc *Client) GetFileContent(owner, repo, path, ref string) ([]byte, bool) {
 	file, _, _, err := gc.client().Repositories.GetContents(owner,
 		repo,
-		content,
+		path,
 		&github.RepositoryContentGetOptions{ref})
 	if err != nil {
 		return nil, false
@@ -90,6 +91,61 @@ func (gc *Client) GetContents(owner, repo, content, ref string) ([]byte, bool) {
 	}
 
 	return decoded, true
+}
+
+// GetContents gets the metadata and content of a file from the given commit or branch
+func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryContent, bool) {
+	file, _, _, err := gc.client().Repositories.GetContents(owner,
+		repo,
+		path,
+		&github.RepositoryContentGetOptions{ref})
+	if err != nil {
+		return nil, false
+	}
+
+	return &scm.RepositoryContent{
+		Content: file.Content,
+		SHA:     file.SHA,
+	}, true
+}
+
+// CreateFile commits a new file to a repository
+func (gc *Client) CreateFile(owner, repo, path, message, branch string, content []byte) (*scm.RepositoryContent, error) {
+	if len(message) == 0 {
+		message = fmt.Sprintf("Create %s", path)
+	}
+	resp, _, err := gc.client().Repositories.CreateFile(owner,
+		repo,
+		path,
+		&github.RepositoryContentFileOptions{
+			Message: &message,
+			Content: content,
+			Branch:  &branch,
+		})
+	if err != nil {
+		return nil, err
+	}
+	return &scm.RepositoryContent{SHA: resp.Content.SHA}, nil
+}
+
+// UpdateFile commits diff of a file content from the given blob
+func (gc *Client) UpdateFile(owner, repo, path, blob, message, branch string, content []byte) (*scm.RepositoryContent, error) {
+	if len(message) == 0 {
+		message = fmt.Sprintf("Update %s", path)
+	}
+	resp, _, err := gc.client().Repositories.UpdateFile(owner,
+		repo,
+		path,
+		&github.RepositoryContentFileOptions{
+			Message: &message,
+			Content: content,
+			SHA:     &blob,
+			Branch:  &branch,
+		})
+	if err != nil {
+		return nil, err
+	}
+	return &scm.RepositoryContent{SHA: resp.Content.SHA}, nil
 }
 
 // GetRepository fetches repository details from GitHub
@@ -191,4 +247,52 @@ func (gc *Client) SetAccessToken(token string) {
 // Name returns the client's remote source name
 func (gc *Client) Name() string {
 	return scm.RepoGithub
+}
+
+// GetHead gets the HEAD ref of a branch
+func (gc *Client) GetHead(owner, repo, branch string) (string, error) {
+	// func (s *GitService) GetRef(owner string, repo string, ref string) (*Reference, *Response, error)
+	ref := fmt.Sprintf("refs/heads/%s", branch)
+	reference, _, err := gc.client().Git.GetRef(owner, repo, ref)
+	if err != nil {
+		return "", err
+	}
+
+	return *reference.Object.SHA, nil
+}
+
+// CreateBranch creates a new branch of the repository from a commit as baseRef
+func (gc *Client) CreateBranch(owner, repo, branchName, baseRef string) (string, error) {
+	headRef := fmt.Sprintf("refs/heads/%s", branchName)
+	reference, _, err := gc.client().Git.CreateRef(
+		owner,
+		repo,
+		&github.Reference{
+			Ref:    &headRef,
+			Object: &github.GitObject{SHA: &baseRef},
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+	return *reference.Ref, nil
+}
+
+// CreatePullRequest starts a pull request of the changes from headRef to baseRef
+func (gc *Client) CreatePullRequest(owner, repo, baseRef, headRef, title string) error {
+	// func (s *PullRequestsService) Create(owner string, repo string, pull *NewPullRequest) (*PullRequest, *Response, error)
+	_, _, err := gc.client().PullRequests.Create(
+		owner,
+		repo,
+		&github.NewPullRequest{
+			Title: &title,
+			Head:  &headRef,
+			Base:  &baseRef,
+		},
+	)
+	if err != nil {
+		logrus.WithError(err).Error("Error creating pull request")
+		return err
+	}
+	return nil
 }

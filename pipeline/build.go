@@ -11,6 +11,7 @@ import (
 	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
+	"github.com/AcalephStorage/kontinuous/store/mc"
 )
 
 // Build contains the details needed to run a build
@@ -83,6 +84,23 @@ func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
 	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 
 	return b
+}
+
+func (b *Build) Delete(pipelinesID string, kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
+	path := fmt.Sprintf("%s%s/builds/%d", pipelineNamespace, b.Pipeline, b.Number)
+	buildsPrefix := fmt.Sprintf("pipelines/%s/builds/%d", pipelinesID, b.Number)
+	bucket := "kontinuous"
+
+	//remove build info from etcd
+	if err := kvClient.DeleteTree(path); err != nil {
+		return err
+	}
+
+	//remove build {num} artifacts and logs from minio storage
+	if err := mcClient.DeleteTree(bucket, buildsPrefix); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Save persists the build details to `etcd`

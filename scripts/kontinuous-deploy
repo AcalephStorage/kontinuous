@@ -2,6 +2,7 @@
 
 KONTINUOUS_SPECS_FILE=/tmp/kontinuous-specs.yml
 KONTINUOUS_RC_SPEC_FILE=/tmp/kontinuous-rc-spec.yml
+KONTINUOUS_UI_RC_SPEC_FILE=/tmp/kontinuous-ui-rc-spec.yml
 
 read -r -d '' SECRET_DATA_TEMPLATE << \
 "-----TEMPLATE-----"
@@ -255,6 +256,69 @@ spec:
               readOnly: true
 -----TEMPLATE-----
 
+read -r -d '' KONTINUOUS_UI_SVC_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: kontinuous-ui
+  namespace: namespace-data
+  labels:
+    app: kontinuous-ui
+    type: dashboard
+spec:
+  type: LoadBalancer
+  selector:
+    app: kontinuous-ui
+    type: dashboard
+  ports:
+    - name: dashboard
+      port: 80
+      targetPort: 5000
+-----TEMPLATE-----
+
+
+read -r -d '' KONTINUOUS_UI_RC_SPEC_TEMPLATE << \
+'-----TEMPLATE-----'
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  labels:
+    app: kontinuous-ui
+    type: dashboard
+  name: kontinuous-ui
+  namespace: namespace-data
+spec:
+  replicas: 1
+  selector:
+    app: kontinuous-ui
+    type: dashboard
+  template:
+    metadata:
+      name: kontinuous-ui
+      namespace: namespace-data
+      labels:
+        app: kontinuous-ui
+        type: dashboard
+    spec:
+      containers:
+        - name: kontinuous-ui
+          image: quay.io/acaleph/kontinuous-ui:0.1.0
+          imagePullPolicy: Always
+          env:
+            - name: GITHUB_CLIENT_CALLBACK
+              value: http://kontinuous-ui-ip
+            - name: GITHUB_CLIENT_ID
+              value: gh-client-id # 65f8775ac3fc2e7e27eb
+            - name: KONTINUOUS_API_URL
+              value: http://kontinuous-ip:8080
+          ports:
+            - name: dashboard
+              containerPort: 5000              
+-----TEMPLATE-----
+
 read -r -d '' HELP_MESSAGE << \
 '-----HELP-----'
 -----------------
@@ -273,6 +337,7 @@ Options:
   --auth-secret       base64 encoded auth secret to be used for JWT authentication
   --s3-access-key     s3 access key
   --s3-secret-key     s3 secret key
+  --github-client-id  github client ID for the registered kontinuous app
   
   --delete            delete create k8s resources
 -----HELP-----
@@ -362,6 +427,29 @@ function create_kontinuous_rc_spec() {
   echo "$kontinuous_spec" > $KONTINUOUS_RC_SPEC_FILE
 }
 
+function create_kontinuous_ui_spec() {
+  local namespace="$1"; shift
+
+  local kontinuous_ui_spec="${KONTINUOUS_UI_SVC_SPEC_TEMPLATE/namespace-data/$namespace}"
+
+  echo "$kontinuous_ui_spec" >> $KONTINUOUS_SPECS_FILE
+}
+
+function create_kontinuous_ui_rc_spec() {
+  local namespace="$1"; shift
+  local kontinuous_ip="$1"; shift
+  local kontinuous_ui_ip="$1"; shift
+  local gh_client_id="$1"; shift
+
+  local kontinuous_ui_rc_spec="${KONTINUOUS_UI_RC_SPEC_TEMPLATE/namespace-data/$namespace}"
+  kontinuous_ui_rc_spec="${kontinuous_ui_rc_spec/namespace-data/$namespace}"
+  kontinuous_ui_rc_spec="${kontinuous_ui_rc_spec/kontinuous-ip/$kontinuous_ip}"
+  kontinuous_ui_rc_spec="${kontinuous_ui_rc_spec/kontinuous-ui-ip/$kontinuous_ui_ip}"
+  kontinuous_ui_rc_spec="${kontinuous_ui_rc_spec/gh-client-id/$gh_client_id}"
+
+  echo "$kontinuous_ui_rc_spec" > $KONTINUOUS_UI_RC_SPEC_FILE
+}
+
 function fetch_kontinuous_ip() {
   local namespace="$1"; shift
 
@@ -379,13 +467,36 @@ function fetch_kontinuous_ip() {
   echo "$ip"
 }
 
+function fetch_kontinuous_ui_ip() {
+  local namespace="$1"; shift
+
+  local ip='<none>'
+  while [[ "$ip" == '<no value>' || "$ip" == '<none>' ]]; do
+    data=$(kubectl get svc kontinuous-ui --namespace="$namespace" -o template --template="{{.status.loadBalancer.ingress}}")
+    if [[ "$data" != '<no value>' && "$data" != '<none>' ]]; then
+      ip=${data/[map[ip:/}
+      ip=${ip/]]/}
+    else
+      sleep 5
+    fi
+  done
+
+  echo "$ip"
+}
+
 function create_kontinuous_rc_resource() {
   kubectl create -f $KONTINUOUS_RC_SPEC_FILE
 }
 
+function create_kontinuous_ui_rc_resource() {
+  kubectl create -f $KONTINUOUS_UI_RC_SPEC_FILE
+}
+
+
 function remove_resources() {
   kubectl delete -f $KONTINUOUS_SPECS_FILE
   kubectl delete -f $KONTINUOUS_RC_SPEC_FILE
+  kubectl delete -f $KONTINUOUS_UI_RC_SPEC_FILE
 }
 
 function main() {
@@ -414,8 +525,14 @@ function main() {
         shift
         ;;
 
+      --github-client-id)
+        local gh_client_id="$2"
+        shift
+        ;;
+
       --delete)
         remove_resources
+        exit 0
         ;;
 
       --help)
@@ -435,12 +552,21 @@ function main() {
   create_minio_spec "$namespace" "$s3_access_key" "$s3_secret_key"
   create_registry_spec "$namespace"
   create_kontinuous_spec "$namespace"
-  # create_kontinuous_resources
+  create_kontinuous_ui_spec "$namespace"
+  create_kontinuous_resources
 
   echo 'Waiting for Kontinuous IP...'
   local kontinuous_ip=$(fetch_kontinuous_ip "$namespace")
   create_kontinuous_rc_spec "$namespace" "$kontinuous_ip"
   create_kontinuous_rc_resource
+
+  echo 'Waiting for Kontinuous UI IP...'
+  local kontinuous_ui_ip=$(fetch_kontinuous_ui_ip "$namespace")
+  create_kontinuous_ui_rc_spec "$namespace" "$kontinuous_ip" "$kontinuous_ui_ip" "$gh_client_id"
+  create_kontinuous_ui_rc_resource
+
+  echo 
+  echo '---Kontinuous Deployed---'
 }
 
 main $@

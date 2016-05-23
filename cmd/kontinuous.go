@@ -25,9 +25,11 @@ const (
 )
 
 type Secrets struct {
-	AuthSecret  string
-	S3SecretKey string
-	S3AccessKey string
+	AuthSecret         string
+	S3SecretKey        string
+	S3AccessKey        string
+	GithubClientID     string
+	GithubClientSecret string
 }
 
 var (
@@ -174,5 +176,7 @@ func setEnv() {
 		os.Setenv("AUTH_SECRET", secrets.AuthSecret)
 		os.Setenv("S3_ACCESS_KEY", secrets.S3AccessKey)
 		os.Setenv("S3_SECRET_KEY", secrets.S3SecretKey)
+		os.Setenv("GITHUB_CLIENT_ID", secrets.GithubClientID)
+		os.Setenv("GITHUB_CLIENT_SECRET", secrets.GithubClientSecret)
 	}
 }

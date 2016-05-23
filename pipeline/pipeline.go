@@ -16,6 +16,7 @@ import (
 
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
+	"github.com/AcalephStorage/kontinuous/store/mc"
 )
 
 const (
@@ -307,6 +308,22 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	return nil
 }
 
+func (p *Pipeline) DeletePipeline(kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
+	path := fmt.Sprintf("%s%s", pipelineNamespace, p.fullName())
+	pipelinePrefix := fmt.Sprintf("pipelines/%s", p.ID)
+	bucket := "kontinuous"
+
+	if err := kvClient.DeleteTree(path); err != nil {
+		return err
+	}
+
+	if err := mcClient.DeleteTree(bucket, pipelinePrefix); err != nil {
+		return err
+	}
+	return nil
+
+}
+
 // Validate checks if the required values for a pipeline are present
 func (p *Pipeline) Validate() error {
 	if p.Owner == "" {
@@ -354,7 +371,7 @@ func (p *Pipeline) Validate() error {
 
 // Definition retrieves the pipeline definition from a given reference
 func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
-	file, ok := c.GetContents(p.Owner, p.Repo, PipelineYAML, ref)
+	file, ok := c.GetFileContent(p.Owner, p.Repo, PipelineYAML, ref)
 	if !ok {
 		return nil, fmt.Errorf("%s not found for %s/%s on %s",
 			PipelineYAML,
@@ -519,4 +536,26 @@ func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) 
 	p.Secrets = definition.Spec.Template.Secrets
 	p.Save(kvClient)
 
+}
+
+// GetDefinitionFile fetches the definition file (PipelineYAML) from the pipeline's repository
+// returns the content (possibly encoded in base64, see scm API) and
+// the SHA of the file (blob)
+func (p *Pipeline) GetDefinitionFile(c scm.Client, ref string) (*DefinitionFile, bool) {
+	file, exists := c.GetContents(p.Owner, p.Repo, PipelineYAML, ref)
+	if !exists {
+		return nil, false
+	}
+	return &DefinitionFile{
+		Content: file.Content,
+		SHA:     file.SHA,
+	}, true
+}
+
+// UpdateDefinitionFile commits the changes of the definition file (PipelineYAML)
+// or creates the file if it does not exist
+// either directly to the default branch
+// or through a pull request
+func (p *Pipeline) UpdateDefinitionFile(c scm.Client, file *DefinitionFile, commit map[string]string) (*DefinitionFile, error) {
+	return file.SaveToRepo(c, p.Owner, p.Repo, commit)
 }
