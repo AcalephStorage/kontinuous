@@ -137,11 +137,11 @@ Optional params:
 
 Required secrets:
 
-| Secret Name | Details             |
-|-------------|---------------------|
-| dockeruser  | the docker user     |
-| dockerpass  | the docker password |
-| dockeremail | the docker email    |
+| Secret Name     | Details             |
+|-----------------|---------------------|
+| dockeruser      | the docker user     |
+| dockerpassword  | the docker password |
+| dockeremail     | the docker email    |
 
 #### command
 
