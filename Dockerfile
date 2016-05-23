@@ -14,8 +14,7 @@ RUN apk update && \
     make && \
     mv build/bin/kontinuous /bin && \
     mv build/bin/kontinuous-cli /bin && \
-    rm -rf /go && \
-    apk del --purge make git go && \
+    apk del --purge git && \
     rm -rf /var/cache/apk/*
 
 EXPOSE 3005
