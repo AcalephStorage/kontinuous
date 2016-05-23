@@ -275,7 +275,7 @@ spec:
             - name: KONTINUOUS_URL
               value: http://{{.KontinuousIP}}:8080
             - name: INTERNAL_REGISTRY
-              value: registry:5000
+              value: registry.{{.Namespace}}:5000
           ports:
             - name: api
               containerPort: 3005
