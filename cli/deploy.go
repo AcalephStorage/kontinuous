@@ -63,7 +63,7 @@ spec:
       port: 9000
       targetPort: 9000
 `
-var minioRc = `
+var minioDep = `
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -76,8 +76,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: minio
-    type: object-store
+    matchLabels:
+      app: minio
+      type: object-store
   template:
     metadata:
       name: minio
@@ -126,7 +127,7 @@ spec:
       targetPort: 2379
 `
 
-var etcdRc = `
+var etcdDep = `
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -139,8 +140,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: etcd
-    type: kv
+    matchLabels:
+      app: etcd
+      type: kv
   template:
     metadata:
       labels:
@@ -181,7 +183,7 @@ spec:
       targetPort: 5000
 `
 
-var registryRc = `
+var registryDep = `
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -194,8 +196,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: registry
-    type: storage
+    matchLabels:
+      app: registry
+      type: storage
   template:
     metadata:
       name: registry
@@ -234,7 +237,7 @@ spec:
       targetPort: 3005
 `
 
-var kontinuousRc = `
+var kontinuousDep = `
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -247,8 +250,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: kontinuous
-    type: ci-cd
+    matchLabels:
+      app: kontinuous
+      type: ci-cd
   template:
     metadata:
       labels:
@@ -304,7 +308,7 @@ spec:
 
 `
 
-var dashboardRc = `
+var dashboardDep = `
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -317,8 +321,9 @@ metadata:
 spec:
   replicas: 1
   selector:
-    app: kontinuous-ui
-    type: dashboard
+    matchLabels:
+      app: kontinuous-ui
+      type: dashboard
   template:
     metadata:
       labels:
@@ -542,11 +547,11 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 
 	deployResource(namespaceData, "APP_NAMESPACE", &deploy)
 	deployResource(minioSvc, "MINIO_SVC", &deploy)
-	deployResource(minioRc, "MINIO_RC", &deploy)
+	deployResource(minioDep, "MINIO_DEPLOYMENT", &deploy)
 	deployResource(etcdSvc, "ETCD_SVC", &deploy)
-	deployResource(etcdRc, "ETCD_RC", &deploy)
+	deployResource(etcdDep, "ETCD_DEPLOYMENT", &deploy)
 	deployResource(registrySvc, "REGISTRY_SVC", &deploy)
-	deployResource(registryRc, "REGISTRY_RC", &deploy)
+	deployResource(registryDep, "REGISTRY_DEPLOYMENT", &deploy)
 	deployResource(kontinuousSvc, "KONTINUOUS_SVC", &deploy)
 	deployResource(dashboardSvc, "DASHBOARD_SVC", &deploy)
 
@@ -564,13 +569,13 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	deploy.DashboardIP = dashboardIp
 	deploy.KontinuousIP = ip
 
-	err = deployResource(kontinuousRc, "KONTINUOUS_RC", &deploy)
+	err = deployResource(kontinuousDep, "KONTINUOUS_DEPLOYMENT", &deploy)
 
 	if err != nil {
 		fmt.Println("Unable to deploy Kontinuous Deployment \n %s", err.Error())
 		return err
 	}
-	err = deployResource(dashboardRc, "DASHBOARD_RC", &deploy)
+	err = deployResource(dashboardDep, "DASHBOARD_DEPLOYMENT", &deploy)
 	if err != nil {
 		fmt.Printf("Unable to deploy Kontinuous UI Deployment \n %s", err.Error())
 		return err
