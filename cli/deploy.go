@@ -271,7 +271,7 @@ spec:
             - name: KV_ADDRESS
               value: etcd:2379
             - name: S3_URL
-              value: http://minio:9000
+              value: http://minio.{{.Namespace}}:9000
             - name: KONTINUOUS_URL
               value: http://{{.KontinuousIP}}:8080
             - name: INTERNAL_REGISTRY
