@@ -31,7 +31,7 @@ Before running Kontinuous, it needs to be added as a github OAuth Application [h
 The `kubernetes-cli` can bootstrap a kontinuous setup on a running Kubernetes cluster. This requires `kubectl` to be in the `PATH` and configured to access the cluster. 
 
 ```
-$ kotinuous-cli --namespace {namespace} \
+$ kontinuous-cli --namespace {namespace} \
     --auth-secret {base64 encoded secret} \
     --github-client-id {github client id} \
     --github-client-secret {github client secret}
