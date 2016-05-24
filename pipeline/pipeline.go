@@ -14,6 +14,7 @@ import (
 	etcd "github.com/coreos/etcd/client"
 	"github.com/dgrijalva/jwt-go"
 
+	"encoding/json"
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
@@ -66,19 +67,20 @@ type (
 
 // Pipeline contains the details of a repo required for a build
 type Pipeline struct {
-	ID                string        `json:"id"`
-	Name              string        `json:"-"`
-	Owner             string        `json:"owner"`
-	Repo              string        `json:"repo"`
-	Events            []string      `json:"events,omitempty"`
-	Builds            []*Build      `json:"builds,omitempty"`
-	LatestBuildNumber int           `json:"-"`
-	LatestBuild       *BuildSummary `json:"latest_build,omitempty"`
-	Keys              Key           `json:"-"`
-	Login             string        `json:"login"`
-	Source            string        `json:"-"`
-	Notifiers         []*Notifier   `json:"notif,omitempty"`
-	Secrets           []string      `json:"secrets,omitempty"`
+	ID                string                 `json:"id"`
+	Name              string                 `json:"-"`
+	Owner             string                 `json:"owner"`
+	Repo              string                 `json:"repo"`
+	Events            []string               `json:"events,omitempty"`
+	Builds            []*Build               `json:"builds,omitempty"`
+	LatestBuildNumber int                    `json:"-"`
+	LatestBuild       *BuildSummary          `json:"latest_build,omitempty"`
+	Keys              Key                    `json:"-"`
+	Login             string                 `json:"login"`
+	Source            string                 `json:"-"`
+	Notifiers         []*Notifier            `json:"notif,omitempty"`
+	Secrets           []string               `json:"secrets,omitempty"`
+	Vars              map[string]interface{} `json:"vars,omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -189,6 +191,14 @@ func FindAllPipelines(kvClient kv.KVClient) ([]*Pipeline, error) {
 
 func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	p := new(Pipeline)
+
+	keys := Key{}
+	keys.Public, _ = kvClient.Get(path + "/keys/public")
+	keys.Private, _ = kvClient.Get(path + "/keys/private")
+	events, _ := kvClient.Get(path + "/events")
+	secrets, _ := kvClient.Get(path + "/secrets")
+	vars, _ := kvClient.Get(path + "/vars")
+
 	p.ID, _ = kvClient.Get(path + "/uuid")
 	p.Repo, _ = kvClient.Get(path + "/repo")
 	p.Owner, _ = kvClient.Get(path + "/owner")
@@ -196,15 +206,12 @@ func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
 	p.Source, _ = kvClient.Get(path + "/source")
 	p.LatestBuildNumber, _ = kvClient.GetInt(path + "/latest-build")
 	p.LatestBuild, _ = p.GetBuildSummary(p.LatestBuildNumber, kvClient)
-	events, _ := kvClient.Get(path + "/events")
 	p.Events = strings.Split(events, ",")
-	keys := Key{}
-	keys.Public, _ = kvClient.Get(path + "/keys/public")
-	keys.Private, _ = kvClient.Get(path + "/keys/private")
 	p.Keys = keys
 	p.Name = p.fullName()
-	secrets, _ := kvClient.Get(path + "/secrets")
 	p.Secrets = strings.Split(secrets, ",")
+	json.Unmarshal([]byte(vars), &p.Vars)
+
 	pipelineNotifiers := []*Notifier{}
 	notifiers, _ := kvClient.Get(path + "/notif/type")
 
@@ -278,6 +285,12 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(path+"/source", p.Source); err != nil {
 		return handleSaveError(path, isNew, err, kvClient)
 	}
+
+	vars, _ := json.Marshal(p.Vars)
+	if err = kvClient.Put(path+"/vars", string(vars)); err != nil {
+		return handleSaveError(path, isNew, err, kvClient)
+	}
+
 	if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
 		return handleSaveError(path, isNew, err, kvClient)
 	}

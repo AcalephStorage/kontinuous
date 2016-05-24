@@ -53,6 +53,7 @@ type Stage struct {
 	PodName     string                 `json:"pod_name,omitempty"`
 	DockerImage string                 `json:"docker_image,omitempty"`
 	Artifacts   []string               `json:"artifacts,omitempty"`
+	Vars        map[string]interface{} `json:"vars,omitempty"`
 }
 
 func getStage(path string, kvClient kv.KVClient) *Stage {
@@ -61,6 +62,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 	finished, _ := kvClient.Get(path + "/finished")
 	params, _ := kvClient.Get(path + "/params")
 	labels, _ := kvClient.Get(path + "/labels")
+	vars, _ := kvClient.Get(path + "/vars")
 
 	s.ID, _ = kvClient.Get(path + "/uuid")
 	s.Index, _ = kvClient.GetInt(path + "/index")
@@ -77,6 +79,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 
 	json.Unmarshal([]byte(params), &s.Params)
 	json.Unmarshal([]byte(labels), &s.Labels)
+	json.Unmarshal([]byte(vars), &s.Vars)
 
 	return s
 }
@@ -114,6 +117,11 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(stagePrefix+"/labels", string(labels)); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
 	}
+	vars, _ := json.Marshal(s.Vars)
+	if err = kvClient.Put(stagePrefix+"/vars", string(vars)); err != nil {
+		return handleSaveError(stagePrefix, isNew, err, kvClient)
+	}
+
 	if err = kvClient.PutInt(stagePrefix+"/index", s.Index); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
 	}
@@ -144,6 +152,12 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 func (s *Stage) Deploy(p *Pipeline, b *Build, c scm.Client) error {
 
 	deployFile := fmt.Sprintf("%v", s.Params["deploy_file"])
+	valueMap := p.Vars
+
+	for key, varVal := range s.Vars {
+		valueMap[key] = varVal
+	}
+
 	ref := b.Commit
 	if ref == "" {
 		ref = b.Branch
@@ -158,8 +172,9 @@ func (s *Stage) Deploy(p *Pipeline, b *Build, c scm.Client) error {
 			p.Repo,
 			ref)
 	}
+
 	kubeClient, _ := kube.NewClient("https://kubernetes.default")
-	if err := kubeClient.DeployResourceFile(file); err != nil {
+	if err := kubeClient.DeployResourceFile(file, valueMap); err != nil {
 		return err
 	}
 

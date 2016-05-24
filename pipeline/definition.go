@@ -26,6 +26,7 @@ type (
 		Stages    []Stage                `json:"stages"`
 		Notifiers []*Notifier            `json:"notif,omitempty"`
 		Secrets   []string               `json:"secrets,omitempty"`
+		Vars      map[string]interface{} `json:"vars,omitempty"`
 	}
 )
 

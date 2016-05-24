@@ -73,12 +73,14 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
 	secrets := getSecrets(definitions.Spec.Template.Secrets, getNamespace(definitions))
+	allVars := getVars(definitions.Spec.Template.Vars, stage.Vars)
 
 	agentContainer := createAgentContainer(definitions, jobInfo)
 	agentContainer.AddVolumeMountPoint(source, "/kontinuous/src", false)
 	agentContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 	agentContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 	setContainerEnv(agentContainer, secrets)
+	setContainerEnv(agentContainer, allVars)
 	addJobContainer(j, agentContainer)
 
 	switch stage.Type {
@@ -89,6 +91,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		dockerContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		dockerContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(dockerContainer, secrets)
+		setContainerEnv(dockerContainer, allVars)
 		addJobContainer(j, dockerContainer)
 
 	case "docker_publish":
@@ -97,6 +100,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		dockerContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		dockerContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(dockerContainer, secrets)
+		setContainerEnv(dockerContainer, allVars)
 		addJobContainer(j, dockerContainer)
 
 	case "command":
@@ -105,6 +109,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		commandContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		commandContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(commandContainer, secrets)
+		setContainerEnv(commandContainer, allVars)
 
 		keySlice := make([]string, 0)
 		for _, env := range commandContainer.Env {
@@ -278,6 +283,18 @@ func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
 		}
 	}
 	return secrets
+}
+
+func getVars(varMaps ...map[string]interface{}) map[string]string {
+
+	var allVars map[string]string
+	for _, varMap := range varMaps {
+		for key, value := range varMap {
+			allVars[key] = fmt.Sprintf("%v", value)
+		}
+	}
+
+	return allVars
 }
 
 func createJobContainer(name string, image string) *kube.Container {

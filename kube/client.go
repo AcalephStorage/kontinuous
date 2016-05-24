@@ -11,18 +11,20 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"github.com/Masterminds/sprig"
 	"github.com/Sirupsen/logrus"
 	"github.com/ghodss/yaml"
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"text/template"
 )
 
 // KubeClient is the interface to access the kubernetes job API
 type KubeClient interface {
 	CreateJob(job *Job) error
 	GetSecret(namespace string, secretName string) (map[string]string, error)
-	DeployResourceFile(resourceFile []byte) error
+	DeployResourceFile(resourceFile []byte, valueMap map[string]interface{}) error
 	GetLog(namespace, pod, container string) (string, error)
 	GetPodNameBySelector(namespace string, selector map[string]string) (string, error)
 	GetPodContainers(namespace, podName string) ([]string, error)
@@ -74,9 +76,20 @@ func (r *realKubeClient) CreateJob(job *Job) error {
 }
 
 // DeployResourceFile deploys a Kubernbetes YAML spec file as Kubernetes resources
-func (r *realKubeClient) DeployResourceFile(resourceFile []byte) error {
+func (r *realKubeClient) DeployResourceFile(resourceFile []byte, valueMap map[string]interface{}) error {
+	resourceStr := string(resourceFile)
+	var b bytes.Buffer
+	template := template.New("kontinuous")
+	template, _ = template.Funcs(sprig.TxtFuncMap()).Parse(resourceStr)
+	err := template.ExecuteTemplate(&b, "kontinuous", &valueMap)
+	if err != nil {
+		logrus.WithError(err).Error("unable to execute template with new values")
+		return err
+	}
 
-	resources := strings.Split(string(resourceFile), "---")
+	resourceStr = b.String()
+
+	resources := strings.Split(resourceStr, "---")
 
 	for _, resource := range resources {
 

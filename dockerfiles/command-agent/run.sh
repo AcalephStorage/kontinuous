@@ -39,7 +39,7 @@ deploy(){
         return 1
     fi
 
-    kubectl create -f ${deployFile}
+    kubectl apply -f ${deployFile}
     if [[ "$?" != "0" ]]; then
         echo "Deploy Failed. Unable to deploy app."
         return 1
@@ -86,7 +86,7 @@ run_image() {
 	echo "      env:" >> /tmp/pod.yml
 	echo "$env_vars" >> /tmp/pod.yml
 
-	kubectl create -f /tmp/pod.yml
+	kubectl apply -f /tmp/pod.yml
 }
 
 generate_result(){
