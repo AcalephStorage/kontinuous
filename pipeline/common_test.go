@@ -38,9 +38,13 @@ spec:
       labels:
         app: my-pipeline
       image: acaleph/deploy-base # Overridable?
+    vars:
+      sampleVars: sample
     stages:
     - name: Test Infra
       type: command
+      vars:
+        testVars: test
       params:
         command: ["test_infra.sh", "--hack-the-gibson"]
         env: # env vars

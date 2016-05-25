@@ -287,7 +287,7 @@ func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
 
 func getVars(varMaps ...map[string]interface{}) map[string]string {
 
-	var allVars map[string]string
+	allVars := make(map[string]string)
 	for _, varMap := range varMaps {
 		for key, value := range varMap {
 			allVars[key] = fmt.Sprintf("%v", value)

@@ -80,7 +80,7 @@ type Pipeline struct {
 	Source            string                 `json:"-"`
 	Notifiers         []*Notifier            `json:"notif,omitempty"`
 	Secrets           []string               `json:"secrets,omitempty"`
-	Vars              map[string]interface{} `json:"vars,omitempty"`
+	Vars              map[string]interface{} `json:"vars, omitempty"`
 }
 
 // CreatePipeline persists the pipeline details and setups
@@ -547,6 +547,7 @@ func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) 
 
 	p.Notifiers = pipelineNotifiers
 	p.Secrets = definition.Spec.Template.Secrets
+	p.Vars = definition.Spec.Template.Vars
 	p.Save(kvClient)
 
 }

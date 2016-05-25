@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 )
@@ -23,6 +24,8 @@ spec:
       name: awesome-webapp
       labels:
         app: awesome-webapp
+    vars:
+      samplevar: sample
     notif:
       - type: slack
         metadata: 
@@ -45,6 +48,8 @@ spec:
           username: acaleph
           password: ...
           email: ...
+        vars:
+          dockerTag: latest
 
  `
 	validCommandYamlSpec = `
@@ -160,6 +165,9 @@ func TestValidInfoBuildJob(t *testing.T) {
 	if result != nil {
 		t.Log("Create K8s Job - Successful!")
 	}
+
+	t.Log(fmt.Printf("pipeline vars %v", definition.Spec.Template.Vars))
+	t.Log(fmt.Printf("stage vars %v", (definition.Spec.Template.Stages)[1].Params))
 
 }
 
