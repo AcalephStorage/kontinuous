@@ -548,6 +548,7 @@ func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) 
 	p.Notifiers = pipelineNotifiers
 	p.Secrets = definition.Spec.Template.Secrets
 	p.Vars = definition.Spec.Template.Vars
+
 	p.Save(kvClient)
 
 }
