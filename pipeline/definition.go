@@ -3,14 +3,12 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"encoding/base64"
-	"encoding/json"
-
-	"github.com/ghodss/yaml"
-
 	"github.com/AcalephStorage/kontinuous/scm"
+	"github.com/ghodss/yaml"
 )
 
 type (
@@ -116,8 +114,12 @@ func GetDefinition(definition []byte) (payload *Definition, err error) {
 		return nil, errors.New("Empty YAML file")
 	}
 
-	data, err := yaml.YAMLToJSON(definition)
-	if err = json.Unmarshal(data, &payload); err != nil {
+	definitionStr := string(definition)
+	definitionStr = strings.Replace(definitionStr, "{{", "\"{{", -1)
+	definitionStr = strings.Replace(definitionStr, "}}", "}}\"", -1)
+
+	if err = yaml.Unmarshal([]byte(definitionStr), &payload); err != nil {
+		fmt.Println("error unmarshalling", err.Error())
 		return nil, err
 	}
 
