@@ -117,7 +117,6 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		}
 		keys := strings.Join(keySlice, " ")
 		commandContainer.AddEnv("ENV_KEYS", keys)
-
 		addJobContainer(j, commandContainer)
 	}
 
@@ -245,14 +244,6 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 	}
 
 	setContainerEnv(container, envVars)
-
-	keySlice := make([]string, 0)
-	for _, env := range container.Env {
-		keySlice = append(keySlice, env.Name)
-	}
-	keys := strings.Join(keySlice, " ")
-	container.AddEnv("ENV_KEYS", keys)
-
 	return container
 }
 
