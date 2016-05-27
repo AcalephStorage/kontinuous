@@ -3,6 +3,7 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -115,8 +116,11 @@ func GetDefinition(definition []byte) (payload *Definition, err error) {
 	}
 
 	definitionStr := string(definition)
-	definitionStr = strings.Replace(definitionStr, "{{", "\"{{", -1)
-	definitionStr = strings.Replace(definitionStr, "}}", "}}\"", -1)
+	re := regexp.MustCompile(`(?m)(:{1}.*\{\{\..*?$)`)
+	for _, v := range re.FindAllString(definitionStr, -1) {
+		v = strings.TrimPrefix(v, ":")
+		definitionStr = strings.Replace(definitionStr, v, fmt.Sprintf(" \"%s \" ", v), -1)
+	}
 
 	if err = yaml.Unmarshal([]byte(definitionStr), &payload); err != nil {
 		fmt.Println("error unmarshalling", err.Error())
