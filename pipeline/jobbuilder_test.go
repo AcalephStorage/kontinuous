@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -42,7 +41,7 @@ spec:
       - name: Deploy Image
         type: docker_publish
         params:
-          external_registry: quay.io
+          external_registry: quay.io:{{dockerTag}}
           external_image_name: acaleph/kontinuous-agent
           require_credentials: "TRUE"
           username: acaleph
@@ -165,10 +164,6 @@ func TestValidInfoBuildJob(t *testing.T) {
 	if result != nil {
 		t.Log("Create K8s Job - Successful!")
 	}
-
-	t.Log(fmt.Printf("pipeline vars %v", definition.Spec.Template.Vars))
-	t.Log(fmt.Printf("stage vars %v", (definition.Spec.Template.Stages)[1].Params))
-
 }
 
 func TestInvalidDefinitionInfoBuildJob(t *testing.T) {

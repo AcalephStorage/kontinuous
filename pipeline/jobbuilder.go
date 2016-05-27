@@ -1,13 +1,12 @@
 package pipeline
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
-
-	"encoding/json"
 
 	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/Sirupsen/logrus"
@@ -68,6 +67,7 @@ func addJobDetail(j *kube.Job, definition *Definition, jobInfo *JobBuildInfo) {
 func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo) {
 
 	stage := getCurrentStage(definitions, jobInfo)
+	parseStageTemplate(stage, definitions.Spec.Template.Vars, stage.Vars)
 
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
@@ -306,8 +306,4 @@ func getNamespace(definition *Definition) string {
 		return "default"
 	}
 	return definition.Metadata["namespace"].(string)
-}
-
-func deployToK8s(deployFile string) {
-
 }
