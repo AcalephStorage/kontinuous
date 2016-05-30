@@ -67,13 +67,14 @@ func addJobDetail(j *kube.Job, definition *Definition, jobInfo *JobBuildInfo) {
 func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo) {
 
 	stage := getCurrentStage(definitions, jobInfo)
-	parseStageTemplate(stage, definitions.Spec.Template.Vars, stage.Vars)
+	kontinuousVars := getKontinuousVars(definitions, jobInfo)
+	parseStageTemplate(stage, kontinuousVars, definitions.Spec.Template.Vars, stage.Vars)
 
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
 	secrets := getSecrets(definitions.Spec.Template.Secrets, getNamespace(definitions))
-	allVars := getVars(definitions.Spec.Template.Vars, stage.Vars)
+	allVars := getVars(kontinuousVars, definitions.Spec.Template.Vars, stage.Vars)
 
 	agentContainer := createAgentContainer(definitions, jobInfo)
 	agentContainer.AddVolumeMountPoint(source, "/kontinuous/src", false)
@@ -137,6 +138,20 @@ func getCurrentStage(definitions *Definition, jobInfo *JobBuildInfo) (stage *Sta
 	return &Stage{}
 }
 
+func getKontinuousVars(definitions *Definition, jobInfo *JobBuildInfo) map[string]interface{} {
+	return map[string]interface{}{
+		"KONTINUOUS_PIPELINE_ID":       jobInfo.PipelineUUID,
+		"KONTINUOUS_BUILD_ID":          jobInfo.Build,
+		"KONTINUOUS_STAGE_ID":          jobInfo.Stage,
+		"KONTINUOUS_BRANCH":            jobInfo.Branch,
+		"KONTINUOUS_NAMESPACE":         getNamespace(definitions),
+		"KONTINUOUS_ARTIFACT_URL":      "",
+		"KONTINUOUS_INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
+		"KONTINUOUS_COMMIT":            jobInfo.Commit,
+	}
+
+}
+
 func createAgentContainer(definitions *Definition, jobInfo *JobBuildInfo) *kube.Container {
 
 	container := createJobContainer("kontinuous-agent", "quay.io/acaleph/kontinuous-agent:latest")
@@ -146,15 +161,9 @@ func createAgentContainer(definitions *Definition, jobInfo *JobBuildInfo) *kube.
 		"GIT_USER":            jobInfo.User,
 		"GIT_REPO":            jobInfo.Repo,
 		"GIT_OWNER":           jobInfo.Owner,
-		"PIPELINE_ID":         jobInfo.PipelineUUID,
-		"BUILD_ID":            jobInfo.Build,
-		"STAGE_ID":            jobInfo.Stage,
 		"S3_URL":              os.Getenv("S3_URL"),
 		"S3_ACCESS_KEY":       os.Getenv("S3_ACCESS_KEY"),
 		"S3_SECRET_KEY":       os.Getenv("S3_SECRET_KEY"),
-		"KONTINUOUS_URL":      os.Getenv("KONTINUOUS_URL"),
-		"NAMESPACE":           getNamespace(definitions),
-		"ARTIFACT_URL":        "",
 	}
 
 	setContainerEnv(container, envVars)
@@ -166,17 +175,12 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 	container := createJobContainer("docker-agent", "quay.io/acaleph/docker-agent:latest")
 
 	envVar := map[string]string{
-		"INTERNAL_REGISTRY":   os.Getenv("INTERNAL_REGISTRY"),
 		"DOCKERFILE_NAME":     "Dockerfile",
 		"DOCKERFILE_PATH":     ".",
 		"REQUIRE_CREDENTIALS": "TRUE",
 		"IMAGE_NAME":          imageName,
 		"MODE":                mode,
-		"PIPELINE_ID":         jobInfo.PipelineUUID,
-		"BUILD_ID":            jobInfo.Build,
-		"STAGE_ID":            jobInfo.Stage,
 		"IMAGE_TAG":           jobInfo.Commit,
-		"BRANCH":              jobInfo.Branch,
 	}
 
 	for stageEnvKey, stageEnvValue := range stage.Params {
@@ -233,17 +237,6 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 		}
 	}
 
-	envVars := map[string]string{
-		"INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
-		"PIPELINE_ID":       jobInfo.PipelineUUID,
-		"BUILD_ID":          jobInfo.Build,
-		"STAGE_ID":          jobInfo.Stage,
-		"COMMIT":            jobInfo.Commit,
-		"BRANCH":            jobInfo.Branch,
-		"NAMESPACE":         stage.Namespace,
-	}
-
-	setContainerEnv(container, envVars)
 	return container
 }
 
