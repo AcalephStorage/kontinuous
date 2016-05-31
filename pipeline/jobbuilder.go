@@ -148,6 +148,7 @@ func getKontinuousVars(definitions *Definition, jobInfo *JobBuildInfo) map[strin
 		"KONTINUOUS_ARTIFACT_URL":      "",
 		"KONTINUOUS_INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
 		"KONTINUOUS_COMMIT":            jobInfo.Commit,
+		"KONTINUOUS_URL":               os.Getenv("KONTINUOUS_URL"),
 	}
 
 }
