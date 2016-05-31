@@ -1,7 +1,7 @@
 FROM debian:jessie
 MAINTAINER admin@acale.ph
 
-ENV KUBERNETES_VERSION 1.1.7
+ENV KUBERNETES_VERSION 1.2.3
 
 # install curl
 # download kubectl
