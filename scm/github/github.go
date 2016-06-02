@@ -109,6 +109,28 @@ func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryCon
 	}, true
 }
 
+//GetDirectoryContents gets the metadata and the contents a directory
+func (gc *Client) GetDirectoryContent(owner, repo, path, ref string) ([]interface{}, bool) {
+	_, dircontents, _, err := gc.client().Repositories.GetContents(owner,
+		repo,
+		path,
+		&github.RepositoryContentGetOptions{ref})
+
+	if err != nil || len(dircontents) == 0 {
+		return nil, false
+	}
+
+	contents := make([]interface{}, len(dircontents))
+	for _, content := range dircontents {
+		decoded, err := content.Decode()
+		if err != nil {
+			continue
+		}
+		contents = append(contents, decoded)
+	}
+	return contents, true
+}
+
 // CreateFile commits a new file to a repository
 func (gc *Client) CreateFile(owner, repo, path, message, branch string, content []byte) (*scm.RepositoryContent, error) {
 	if len(message) == 0 {

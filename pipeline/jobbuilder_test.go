@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/AcalephStorage/kontinuous/scm/github"
 )
 
 var (
@@ -154,7 +156,8 @@ func TestValidInfoBuildJob(t *testing.T) {
 	setEnvVariables(envVar)
 	//set Environment Variables
 
-	job, _ := build(definition, jobInfo)
+	scmClient := new(github.Client)
+	job, _ := build(definition, jobInfo, scmClient)
 
 	result, err := json.MarshalIndent(job, "", "\t")
 	if err != nil {
@@ -193,7 +196,8 @@ func TestValidInfoCommandJob(t *testing.T) {
 	definition, _ := GetDefinition([]byte(validCommandYamlSpec))
 	jobInfo, _ := GetJobBuildInfo([]byte(validJobBuildInfo))
 
-	job, _ := build(definition, jobInfo)
+	scmClient := new(github.Client)
+	job, _ := build(definition, jobInfo, scmClient)
 	result, err := json.MarshalIndent(job, "", "\t")
 
 	if err != nil {

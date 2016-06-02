@@ -5,26 +5,21 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/Masterminds/sprig"
 	"github.com/Sirupsen/logrus"
-	"github.com/ghodss/yaml"
 	"io/ioutil"
 	"net/http"
 	"reflect"
-	"text/template"
 )
 
 // KubeClient is the interface to access the kubernetes job API
 type KubeClient interface {
 	CreateJob(job *Job) error
 	GetSecret(namespace string, secretName string) (map[string]string, error)
-	DeployResourceFile(resourceFile []byte, valueMap map[string]interface{}) error
 	GetLog(namespace, pod, container string) (string, error)
 	GetPodNameBySelector(namespace string, selector map[string]string) (string, error)
 	GetPodContainers(namespace, podName string) ([]string, error)
@@ -73,82 +68,6 @@ func (r *realKubeClient) CreateJob(job *Job) error {
 	byteData := bytes.NewReader(data)
 	return r.doPost(url, byteData)
 
-}
-
-// DeployResourceFile deploys a Kubernbetes YAML spec file as Kubernetes resources
-func (r *realKubeClient) DeployResourceFile(resourceFile []byte, valueMap map[string]interface{}) error {
-	resourceStr := string(resourceFile)
-	var b bytes.Buffer
-	template := template.New("kontinuous")
-	template, _ = template.Funcs(sprig.TxtFuncMap()).Parse(resourceStr)
-	err := template.ExecuteTemplate(&b, "kontinuous", &valueMap)
-	if err != nil {
-		logrus.WithError(err).Error("unable to execute template with new values")
-		return err
-	}
-
-	resourceStr = b.String()
-
-	resources := strings.Split(resourceStr, "---")
-
-	for _, resource := range resources {
-
-		// if it's empty, skip
-		if strings.TrimSpace(resource) == "" {
-			continue
-		}
-
-		logrus.Info("deploying to kubernetes: ", resource)
-
-		data, err := yaml.YAMLToJSON([]byte(resource))
-		if err != nil {
-			logrus.WithError(err).Error("unable to convert yaml to json")
-			return err
-		}
-
-		var out map[string]interface{}
-		err = json.Unmarshal(data, &out)
-		if err != nil {
-			logrus.WithError(err).Error("unable to unmarshal json to map")
-			return err
-		}
-
-		// if unmarshalled data is nil, skip
-		if out == nil {
-			continue
-		}
-
-		kind := strings.ToLower(out["kind"].(string)) + "s"
-		metadata := out["metadata"]
-		namespace := "default"
-		name := ""
-		if metadata != nil {
-			namespace = metadata.(map[string]interface{})["namespace"].(string)
-			name = metadata.(map[string]interface{})["name"].(string)
-		}
-
-		// endpoint is /api/v1/namespaces/{namespace}/{resourceType}
-		uri := fmt.Sprintf("/api/v1/namespaces/%s/%s/%s", namespace, kind, name)
-
-		err = r.doGet(uri, &out)
-		if err == nil {
-			err = r.doDelete(uri)
-			time.Sleep(45 * time.Second)
-			if err != nil {
-				logrus.WithError(err).Error("unable to DELETE resource")
-			}
-		}
-
-		postUri := fmt.Sprintf("/api/v1/namespaces/%s/%s", namespace, kind)
-		err = r.doPost(postUri, bytes.NewReader(data))
-		if err != nil {
-			logrus.WithError(err).Error("unable to POST data")
-			return err
-		}
-
-	}
-
-	return nil
 }
 
 //Get secret with a given namespace and secret name

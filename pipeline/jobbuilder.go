@@ -1,21 +1,27 @@
 package pipeline
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
+	"encoding/base64"
+	"encoding/json"
+	"text/template"
+
 	"github.com/AcalephStorage/kontinuous/kube"
+	"github.com/AcalephStorage/kontinuous/scm"
+	"github.com/Masterminds/sprig"
 	"github.com/Sirupsen/logrus"
 )
 
 // CreateJob creates a kubernetes Job for the given build information
-func CreateJob(definition *Definition, jobInfo *JobBuildInfo) (j *kube.Job, err error) {
+func CreateJob(definition *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) (j *kube.Job, err error) {
 
-	newJob, _ := build(definition, jobInfo)
+	newJob, _ := build(definition, jobInfo, scmClient)
 
 	err = deployJob(newJob)
 	if err != nil {
@@ -39,14 +45,14 @@ func GetJobBuildInfo(jobInfo []byte) (payload *JobBuildInfo, err error) {
 	return payload, nil
 }
 
-func build(definition *Definition, jobInfo *JobBuildInfo) (j *kube.Job, err error) {
+func build(definition *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) (j *kube.Job, err error) {
 
 	namespace := getNamespace(definition)
 	name := fmt.Sprintf("%s-%s-%s", jobInfo.PipelineUUID, jobInfo.Build, jobInfo.Stage)
 	j = kube.NewJob(name, namespace)
 
 	addJobDetail(j, definition, jobInfo)
-	addSpecDetails(j, definition, jobInfo)
+	addSpecDetails(j, definition, jobInfo, scmClient)
 	return j, nil
 
 }
@@ -64,7 +70,7 @@ func addJobDetail(j *kube.Job, definition *Definition, jobInfo *JobBuildInfo) {
 	}
 }
 
-func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo) {
+func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) {
 
 	stage := getCurrentStage(definitions, jobInfo)
 	kontinuousVars := getKontinuousVars(definitions, jobInfo)
@@ -119,6 +125,15 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		keys := strings.Join(keySlice, " ")
 		commandContainer.AddEnv("ENV_KEYS", keys)
 		addJobContainer(j, commandContainer)
+
+	case "deploy":
+		deployContainer := createDeployContainer(allVars, stage, definitions, jobInfo, scmClient)
+		deployContainer.AddVolumeMountPoint(source, "/kontinuous/src", false)
+		deployContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
+		deployContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
+		setContainerEnv(deployContainer, secrets)
+		setContainerEnv(deployContainer, allVars)
+		addJobContainer(j, deployContainer)
 	}
 
 	if stage.Artifacts != nil && len(stage.Artifacts) > 0 {
@@ -168,6 +183,49 @@ func createAgentContainer(definitions *Definition, jobInfo *JobBuildInfo) *kube.
 	}
 
 	setContainerEnv(container, envVars)
+	return container
+}
+
+func createDeployContainer(deploymentVars map[string]string, stage *Stage, definitions *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) *kube.Container {
+	container := createJobContainer("kontinuous-agent", "quay.io/acaleph/deploy-agent:latest")
+	deployFile := fmt.Sprintf("%v", stage.Params["deploy_file"])
+	deployDir := fmt.Sprintf("%v", stage.Params["deploy_dir"])
+
+	ref := jobInfo.Commit
+	if ref == "" {
+		ref = jobInfo.Branch
+	}
+	fileToParse := make([]interface{}, 0)
+
+	if deployFile != "" {
+		file, ok := scmClient.GetFileContent(jobInfo.Owner, jobInfo.Repo, deployFile, ref)
+		if ok {
+			fileToParse = append(fileToParse, file)
+		}
+	}
+
+	if deployDir != "" {
+		dirContents, ok := scmClient.GetDirectoryContent(jobInfo.Owner, jobInfo.Repo, deployDir, ref)
+		if ok {
+			fileToParse = append(fileToParse, dirContents...)
+		}
+	}
+
+	template := template.New("kontinuous")
+	parsedFiles := make([]string, 0)
+
+	for _, tobeParsed := range fileToParse {
+		b := bytes.Buffer{}
+		template, _ = template.Funcs(sprig.TxtFuncMap()).Parse(string(tobeParsed.([]byte)))
+		err := template.ExecuteTemplate(&b, "kontinuous", deploymentVars)
+		if err != nil {
+			continue
+		}
+		parsedFiles = append(parsedFiles, base64.StdEncoding.EncodeToString(b.Bytes()))
+	}
+
+	deployFiles := strings.Join(parsedFiles, " ")
+	container.AddEnv("DEPLOY_FILES", deployFiles)
 	return container
 }
 
