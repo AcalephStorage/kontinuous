@@ -30,7 +30,7 @@ deploy(){
 
 	for fileStr in ${DEPLOY_FILES} 
 	do
-		echo ${fileStr} | base64 -D > /tmp/deployfiles/$i.yml
+		echo -n ${fileStr} | base64 -d > /tmp/deployfiles/$i.yml
 		let "i+=1"
 	done
 
