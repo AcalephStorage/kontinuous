@@ -1,0 +1,19 @@
+---
+kind: Config
+apiVersion: v1
+clusters:
+  - name: default
+    cluster:
+      server: https://kubernetes.default
+      certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+contexts:
+  - name: default 
+    context:
+      cluster: default
+      namespace: default
+      user: admin
+current-context: default
+users:
+  - name: admin
+    user:
+      token: {{token}}

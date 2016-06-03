@@ -1,10 +1,13 @@
 package pipeline
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"text/template"
 
 	etcd "github.com/coreos/etcd/client"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/AcalephStorage/kontinuous/notif"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
+	"github.com/Masterminds/sprig"
 )
 
 // Build contains the details needed to run a build
@@ -170,18 +174,45 @@ func (b *Build) Save(kvClient kv.KVClient) (err error) {
 func (b *Build) CreateStages(kvClient kv.KVClient) (err error) {
 	buildsPrefix := fmt.Sprintf("%s%s/builds", pipelineNamespace, b.Pipeline)
 	stagesPrefix := fmt.Sprintf("%s/%d/stages", buildsPrefix, b.Number)
+	p := getPipeline(fmt.Sprintf("%s%s", pipelineNamespace, b.Pipeline), kvClient)
 
 	for idx, stage := range b.Stages {
 		stage.Status = BuildPending
 		stage.Index = idx + 1
 		stage.ID = generateUUID()
 
+		parseStageTemplate(stage, p.Vars, stage.Vars)
 		if err := stage.Save(stagesPrefix, kvClient); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func parseStageTemplate(stage *Stage, varMaps ...map[string]interface{}) error {
+
+	allVars := make(map[string]string)
+	for _, varMap := range varMaps {
+		for key, value := range varMap {
+			allVars[key] = fmt.Sprintf("%v", value)
+		}
+	}
+
+	stageStr, _ := json.Marshal(stage)
+
+	var stageBuffer bytes.Buffer
+	template := template.New("stage")
+	template, _ = template.Funcs(sprig.TxtFuncMap()).Parse(string(stageStr))
+	err := template.ExecuteTemplate(&stageBuffer, "stage", &allVars)
+	if err != nil {
+		fmt.Printf("unable to execute template with new values %v \n", err.Error())
+		return err
+	}
+
+	json.Unmarshal([]byte(stageBuffer.String()), &stage)
+	return nil
+
 }
 
 // GetStages fetches all stages of the build from the store

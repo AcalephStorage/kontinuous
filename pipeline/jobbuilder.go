@@ -1,22 +1,27 @@
 package pipeline
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
+	"encoding/base64"
 	"encoding/json"
+	"text/template"
 
 	"github.com/AcalephStorage/kontinuous/kube"
+	"github.com/AcalephStorage/kontinuous/scm"
+	"github.com/Masterminds/sprig"
 	"github.com/Sirupsen/logrus"
 )
 
 // CreateJob creates a kubernetes Job for the given build information
-func CreateJob(definition *Definition, jobInfo *JobBuildInfo) (j *kube.Job, err error) {
+func CreateJob(definition *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) (j *kube.Job, err error) {
 
-	newJob, _ := build(definition, jobInfo)
+	newJob, _ := build(definition, jobInfo, scmClient)
 
 	err = deployJob(newJob)
 	if err != nil {
@@ -40,14 +45,14 @@ func GetJobBuildInfo(jobInfo []byte) (payload *JobBuildInfo, err error) {
 	return payload, nil
 }
 
-func build(definition *Definition, jobInfo *JobBuildInfo) (j *kube.Job, err error) {
+func build(definition *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) (j *kube.Job, err error) {
 
 	namespace := getNamespace(definition)
 	name := fmt.Sprintf("%s-%s-%s", jobInfo.PipelineUUID, jobInfo.Build, jobInfo.Stage)
 	j = kube.NewJob(name, namespace)
 
 	addJobDetail(j, definition, jobInfo)
-	addSpecDetails(j, definition, jobInfo)
+	addSpecDetails(j, definition, jobInfo, scmClient)
 	return j, nil
 
 }
@@ -65,20 +70,24 @@ func addJobDetail(j *kube.Job, definition *Definition, jobInfo *JobBuildInfo) {
 	}
 }
 
-func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo) {
+func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) {
 
 	stage := getCurrentStage(definitions, jobInfo)
+	kontinuousVars := getKontinuousVars(definitions, jobInfo)
+	parseStageTemplate(stage, kontinuousVars, definitions.Spec.Template.Vars, stage.Vars)
 
 	source := j.AddPodVolume("kontinuous-source", "/kontinuous/src")
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
-	secrets := getSecrets(definitions.Spec.Template.Secrets, getNamespace(definitions))
+	secrets := getSecrets(getNamespace(definitions), definitions.Spec.Template.Secrets, stage.Secrets)
+	allVars := getVars(kontinuousVars, definitions.Spec.Template.Vars, stage.Vars)
 
 	agentContainer := createAgentContainer(definitions, jobInfo)
 	agentContainer.AddVolumeMountPoint(source, "/kontinuous/src", false)
 	agentContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 	agentContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 	setContainerEnv(agentContainer, secrets)
+	setContainerEnv(agentContainer, allVars)
 	addJobContainer(j, agentContainer)
 
 	switch stage.Type {
@@ -89,6 +98,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		dockerContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		dockerContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(dockerContainer, secrets)
+		setContainerEnv(dockerContainer, allVars)
 		addJobContainer(j, dockerContainer)
 
 	case "docker_publish":
@@ -97,6 +107,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		dockerContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		dockerContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(dockerContainer, secrets)
+		setContainerEnv(dockerContainer, allVars)
 		addJobContainer(j, dockerContainer)
 
 	case "command":
@@ -105,6 +116,7 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		commandContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
 		commandContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
 		setContainerEnv(commandContainer, secrets)
+		setContainerEnv(commandContainer, allVars)
 
 		keySlice := make([]string, 0)
 		for _, env := range commandContainer.Env {
@@ -112,8 +124,16 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo)
 		}
 		keys := strings.Join(keySlice, " ")
 		commandContainer.AddEnv("ENV_KEYS", keys)
-
 		addJobContainer(j, commandContainer)
+
+	case "deploy":
+		deployContainer := createDeployContainer(allVars, stage, definitions, jobInfo, scmClient)
+		deployContainer.AddVolumeMountPoint(source, "/kontinuous/src", false)
+		deployContainer.AddVolumeMountPoint(status, "/kontinuous/status", false)
+		deployContainer.AddVolumeMountPoint(docker, "/var/run/docker.sock", false)
+		setContainerEnv(deployContainer, secrets)
+		setContainerEnv(deployContainer, allVars)
+		addJobContainer(j, deployContainer)
 	}
 
 	if stage.Artifacts != nil && len(stage.Artifacts) > 0 {
@@ -133,6 +153,21 @@ func getCurrentStage(definitions *Definition, jobInfo *JobBuildInfo) (stage *Sta
 	return &Stage{}
 }
 
+func getKontinuousVars(definitions *Definition, jobInfo *JobBuildInfo) map[string]interface{} {
+	return map[string]interface{}{
+		"KONTINUOUS_PIPELINE_ID":       jobInfo.PipelineUUID,
+		"KONTINUOUS_BUILD_ID":          jobInfo.Build,
+		"KONTINUOUS_STAGE_ID":          jobInfo.Stage,
+		"KONTINUOUS_BRANCH":            jobInfo.Branch,
+		"KONTINUOUS_NAMESPACE":         getNamespace(definitions),
+		"KONTINUOUS_ARTIFACT_URL":      "",
+		"KONTINUOUS_INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
+		"KONTINUOUS_COMMIT":            jobInfo.Commit,
+		"KONTINUOUS_URL":               os.Getenv("KONTINUOUS_URL"),
+	}
+
+}
+
 func createAgentContainer(definitions *Definition, jobInfo *JobBuildInfo) *kube.Container {
 
 	container := createJobContainer("kontinuous-agent", "quay.io/acaleph/kontinuous-agent:latest")
@@ -142,18 +177,55 @@ func createAgentContainer(definitions *Definition, jobInfo *JobBuildInfo) *kube.
 		"GIT_USER":            jobInfo.User,
 		"GIT_REPO":            jobInfo.Repo,
 		"GIT_OWNER":           jobInfo.Owner,
-		"PIPELINE_ID":         jobInfo.PipelineUUID,
-		"BUILD_ID":            jobInfo.Build,
-		"STAGE_ID":            jobInfo.Stage,
 		"S3_URL":              os.Getenv("S3_URL"),
 		"S3_ACCESS_KEY":       os.Getenv("S3_ACCESS_KEY"),
 		"S3_SECRET_KEY":       os.Getenv("S3_SECRET_KEY"),
-		"KONTINUOUS_URL":      os.Getenv("KONTINUOUS_URL"),
-		"NAMESPACE":           getNamespace(definitions),
-		"ARTIFACT_URL":        "",
 	}
 
 	setContainerEnv(container, envVars)
+	return container
+}
+
+func createDeployContainer(deploymentVars map[string]string, stage *Stage, definitions *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) *kube.Container {
+	container := createJobContainer("deploy-agent", "quay.io/acaleph/deploy-agent:latest")
+	deployFile := fmt.Sprintf("%v", stage.Params["deploy_file"])
+	deployDir := fmt.Sprintf("%v", stage.Params["deploy_dir"])
+
+	ref := jobInfo.Commit
+	if ref == "" {
+		ref = jobInfo.Branch
+	}
+	fileToParse := make([]interface{}, 0)
+
+	if deployFile != "" {
+		file, ok := scmClient.GetFileContent(jobInfo.Owner, jobInfo.Repo, deployFile, ref)
+		if ok {
+			fileToParse = append(fileToParse, file)
+		}
+	}
+
+	if deployDir != "" {
+		dirContents, ok := scmClient.GetDirectoryContent(jobInfo.Owner, jobInfo.Repo, deployDir, ref)
+		if ok {
+			fileToParse = append(fileToParse, dirContents...)
+		}
+	}
+
+	template := template.New("kontinuous")
+	parsedFiles := make([]string, 0)
+
+	for _, tobeParsed := range fileToParse {
+		b := bytes.Buffer{}
+		template, _ = template.Funcs(sprig.TxtFuncMap()).Parse(string(tobeParsed.([]byte)))
+		err := template.ExecuteTemplate(&b, "kontinuous", deploymentVars)
+		if err != nil {
+			continue
+		}
+		parsedFiles = append(parsedFiles, base64.StdEncoding.EncodeToString(b.Bytes()))
+	}
+
+	deployFiles := strings.Join(parsedFiles, " ")
+	container.AddEnv("DEPLOY_FILES", deployFiles)
 	return container
 }
 
@@ -162,17 +234,12 @@ func createDockerContainer(stage *Stage, jobInfo *JobBuildInfo, mode string) *ku
 	container := createJobContainer("docker-agent", "quay.io/acaleph/docker-agent:latest")
 
 	envVar := map[string]string{
-		"INTERNAL_REGISTRY":   os.Getenv("INTERNAL_REGISTRY"),
 		"DOCKERFILE_NAME":     "Dockerfile",
 		"DOCKERFILE_PATH":     ".",
 		"REQUIRE_CREDENTIALS": "TRUE",
 		"IMAGE_NAME":          imageName,
 		"MODE":                mode,
-		"PIPELINE_ID":         jobInfo.PipelineUUID,
-		"BUILD_ID":            jobInfo.Build,
-		"STAGE_ID":            jobInfo.Stage,
 		"IMAGE_TAG":           jobInfo.Commit,
-		"BRANCH":              jobInfo.Branch,
 	}
 
 	for stageEnvKey, stageEnvValue := range stage.Params {
@@ -229,25 +296,6 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 		}
 	}
 
-	envVars := map[string]string{
-		"INTERNAL_REGISTRY": os.Getenv("INTERNAL_REGISTRY"),
-		"PIPELINE_ID":       jobInfo.PipelineUUID,
-		"BUILD_ID":          jobInfo.Build,
-		"STAGE_ID":          jobInfo.Stage,
-		"COMMIT":            jobInfo.Commit,
-		"BRANCH":            jobInfo.Branch,
-		"NAMESPACE":         stage.Namespace,
-	}
-
-	setContainerEnv(container, envVars)
-
-	keySlice := make([]string, 0)
-	for _, env := range container.Env {
-		keySlice = append(keySlice, env.Name)
-	}
-	keys := strings.Join(keySlice, " ")
-	container.AddEnv("ENV_KEYS", keys)
-
 	return container
 }
 
@@ -263,21 +311,35 @@ func setContainerEnv(container *kube.Container, envVars map[string]string) {
 
 }
 
-func getSecrets(pipelineSecrets []string, namespace string) map[string]string {
+func getSecrets(namespace string, allSecrets ...[]string) map[string]string {
 	kubeClient, _ := kube.NewClient("https://kubernetes.default")
 	secrets := make(map[string]string)
 
-	for _, secret := range pipelineSecrets {
-		secretEnv, err := kubeClient.GetSecret(namespace, secret)
-		if err != nil {
-			logrus.Printf("Unable to get secret %s", secret)
-			continue
-		}
-		for key, value := range secretEnv {
-			secrets[key] = strings.TrimSpace(value)
+	for _, secretArr := range allSecrets {
+		for _, secret := range secretArr {
+			secretEnv, err := kubeClient.GetSecret(namespace, secret)
+			if err != nil {
+				logrus.Printf("Unable to get secret %s", secret)
+				continue
+			}
+			for key, value := range secretEnv {
+				secrets[key] = strings.TrimSpace(value)
+			}
 		}
 	}
 	return secrets
+}
+
+func getVars(varMaps ...map[string]interface{}) map[string]string {
+
+	allVars := make(map[string]string)
+	for _, varMap := range varMaps {
+		for key, value := range varMap {
+			allVars[key] = fmt.Sprintf("%v", value)
+		}
+	}
+
+	return allVars
 }
 
 func createJobContainer(name string, image string) *kube.Container {
@@ -298,8 +360,4 @@ func getNamespace(definition *Definition) string {
 		return "default"
 	}
 	return definition.Metadata["namespace"].(string)
-}
-
-func deployToK8s(deployFile string) {
-
 }
