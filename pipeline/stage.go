@@ -3,6 +3,7 @@ package pipeline
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"encoding/json"
 
@@ -52,6 +53,7 @@ type Stage struct {
 	PodName     string                 `json:"pod_name,omitempty"`
 	DockerImage string                 `json:"docker_image,omitempty"`
 	Artifacts   []string               `json:"artifacts,omitempty"`
+	Secrets     []string               `json:"secrets"`
 	Vars        map[string]interface{} `json:"vars"`
 }
 
@@ -61,6 +63,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 	finished, _ := kvClient.Get(path + "/finished")
 	params, _ := kvClient.Get(path + "/params")
 	labels, _ := kvClient.Get(path + "/labels")
+	secrets, _ := kvClient.Get(path + "/secrets")
 	vars, _ := kvClient.Get(path + "/vars")
 
 	s.ID, _ = kvClient.Get(path + "/uuid")
@@ -75,6 +78,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 	s.Message, _ = kvClient.Get(path + "/message")
 	s.Started, _ = strconv.ParseInt(started, 10, 64)
 	s.Finished, _ = strconv.ParseInt(finished, 10, 64)
+	s.Secrets = strings.Split(secrets, ",")
 
 	json.Unmarshal([]byte(params), &s.Params)
 	json.Unmarshal([]byte(labels), &s.Labels)
@@ -116,6 +120,8 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(stagePrefix+"/labels", string(labels)); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
 	}
+	secrets := strings.Join(s.Secrets, ",")
+	if err = kvClient.Put(stagePrefix+"/secrets", secrets); err != nil {
 	vars, _ := json.Marshal(s.Vars)
 	if err = kvClient.Put(stagePrefix+"/vars", string(vars)); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
