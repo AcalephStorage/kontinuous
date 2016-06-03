@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 TAG=${TAG:-latest}
-IMAGES="kontinuous-agent docker-agent command-agent"
+IMAGES="kontinuous-agent docker-agent command-agent deploy-agent"
 
 echo_plus() {
 	local message=$1

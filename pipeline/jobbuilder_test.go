@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/AcalephStorage/kontinuous/scm/github"
 )
 
 var (
@@ -23,6 +25,8 @@ spec:
       name: awesome-webapp
       labels:
         app: awesome-webapp
+    vars:
+      samplevar: sample
     notif:
       - type: slack
         metadata: 
@@ -39,12 +43,14 @@ spec:
       - name: Deploy Image
         type: docker_publish
         params:
-          external_registry: quay.io
+          external_registry: quay.io:{{dockerTag}}
           external_image_name: acaleph/kontinuous-agent
           require_credentials: "TRUE"
           username: acaleph
           password: ...
           email: ...
+        vars:
+          dockerTag: latest
 
  `
 	validCommandYamlSpec = `
@@ -150,7 +156,8 @@ func TestValidInfoBuildJob(t *testing.T) {
 	setEnvVariables(envVar)
 	//set Environment Variables
 
-	job, _ := build(definition, jobInfo)
+	scmClient := new(github.Client)
+	job, _ := build(definition, jobInfo, scmClient)
 
 	result, err := json.MarshalIndent(job, "", "\t")
 	if err != nil {
@@ -160,7 +167,6 @@ func TestValidInfoBuildJob(t *testing.T) {
 	if result != nil {
 		t.Log("Create K8s Job - Successful!")
 	}
-
 }
 
 func TestInvalidDefinitionInfoBuildJob(t *testing.T) {
@@ -190,7 +196,8 @@ func TestValidInfoCommandJob(t *testing.T) {
 	definition, _ := GetDefinition([]byte(validCommandYamlSpec))
 	jobInfo, _ := GetJobBuildInfo([]byte(validJobBuildInfo))
 
-	job, _ := build(definition, jobInfo)
+	scmClient := new(github.Client)
+	job, _ := build(definition, jobInfo, scmClient)
 	result, err := json.MarshalIndent(job, "", "\t")
 
 	if err != nil {
