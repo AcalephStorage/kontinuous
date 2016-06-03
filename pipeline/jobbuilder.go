@@ -80,7 +80,6 @@ func addSpecDetails(j *kube.Job, definitions *Definition, jobInfo *JobBuildInfo,
 	status := j.AddPodVolume("kontinuous-status", "/kontinuous/status")
 	docker := j.AddPodVolume("kontinuous-docker", "/var/run/docker.sock")
 	secrets := getSecrets(getNamespace(definitions), definitions.Spec.Template.Secrets, stage.Secrets)
-	secrets := getSecrets(definitions.Spec.Template.Secrets, getNamespace(definitions))
 	allVars := getVars(kontinuousVars, definitions.Spec.Template.Vars, stage.Vars)
 
 	agentContainer := createAgentContainer(definitions, jobInfo)
