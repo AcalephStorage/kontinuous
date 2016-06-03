@@ -22,7 +22,7 @@ deploy(){
 	echo "Deploying App to Kubernetes Cluster"
 	if [[ ${DEPLOY_FILES} == "" ]]; then
 		echo "Resource/s not found."
-		return generate_result "1"
+		return exit 1
 	fi
 
 	i=0
@@ -36,12 +36,7 @@ deploy(){
 
 
     kubectl apply -f /tmp/deployfiles
-    if [[ "$?" != "0" ]]; then
-        echo "Deploy Failed. Unable to deploy app."
-        return generate_result "1"
-    fi 
-    echo "Deploy Successful"
-    return generate_result "0"
+    generate_result $?
 }
 
 
@@ -49,11 +44,11 @@ generate_result(){
 	local result="$1"
 	if [[ "$result" != "0" ]]; then
 			touch /kontinuous/status/${KONTINUOUS_PIPELINE_ID}/${KONTINUOUS_BUILD_ID}/${KONTINUOUS_STAGE_ID}/fail
-			echo "Build Fail"
+			echo "Deploy Fail"
 			exit 1
 		else
 			touch /kontinuous/status/${KONTINUOUS_PIPELINE_ID}/${KONTINUOUS_BUILD_ID}/${KONTINUOUS_STAGE_ID}/success
-			echo "Build Successful"	
+			echo "Deploy Successful"	
 			exit 0
 	fi
 }

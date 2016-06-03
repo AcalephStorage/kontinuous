@@ -1,7 +1,9 @@
 package github
 
 import (
+	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"encoding/json"
@@ -122,8 +124,13 @@ func (gc *Client) GetDirectoryContent(owner, repo, path, ref string) ([]interfac
 
 	contents := make([]interface{}, len(dircontents))
 	for _, content := range dircontents {
-		decoded, err := content.Decode()
-		if err != nil {
+		buf := bytes.Buffer{}
+		val := reflect.ValueOf(content.Path)
+		v := reflect.Indirect(val)
+		fmt.Fprintf(&buf, `%s`, v)
+		contentPath := buf.String()
+		decoded, ok := gc.GetFileContent(owner, repo, contentPath, ref)
+		if !ok {
 			continue
 		}
 		contents = append(contents, decoded)
