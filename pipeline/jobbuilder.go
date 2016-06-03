@@ -187,7 +187,7 @@ func createAgentContainer(definitions *Definition, jobInfo *JobBuildInfo) *kube.
 }
 
 func createDeployContainer(deploymentVars map[string]string, stage *Stage, definitions *Definition, jobInfo *JobBuildInfo, scmClient scm.Client) *kube.Container {
-	container := createJobContainer("kontinuous-agent", "quay.io/acaleph/deploy-agent:latest")
+	container := createJobContainer("deploy-agent", "quay.io/acaleph/deploy-agent:latest")
 	deployFile := fmt.Sprintf("%v", stage.Params["deploy_file"])
 	deployDir := fmt.Sprintf("%v", stage.Params["deploy_dir"])
 
