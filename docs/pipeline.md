@@ -29,7 +29,9 @@ spec:
       - type: slack
     secrets:
       - notifcreds
-      - docker-credentials
+    vars:
+      name: kontinuous
+      namespace: acaleph
     stages:
       - name: Build Docker Image
         type: docker_build
@@ -45,6 +47,12 @@ spec:
           external_registry: quay.io
           external_image_name: acaleph/kontinuous
           require_credentials: "TRUE"
+        secrets:
+          - docker-credentials
+      - name: Deploy Kontinuous
+        type: deploy
+        params:
+          deploy_file: manifest.yml
 ```
 
 Some important fields on the spec:
@@ -77,7 +85,7 @@ Slack details are taken from the secrets. The following secrets needs to be defi
 
 ### Secrets
 
-Kubernetes secrets can be added to the pipeline. Each of the secret entries will be added as environment variables.
+Kubernetes secrets can be added to the pipeline. Each of the secret entries will be added as environment variables. This is accessible to all stages.
 
 ```yaml
 spec:
@@ -86,6 +94,27 @@ spec:
       - secret1
       - secret2
 ```
+
+### Vars
+
+Users can define variables that will be accessible to all stages. These variables can also be used to replace template fields.
+
+
+Here is the list of available Kontinuous variables.
+
+
+| Vars                            | Description                                                                               |
+|---------------------------------|-------------------------------------------------------------------------------------------|
+| `KONTINUOUS_PIPELINE_ID`        |  Generated UUID for Kontinuous pipeline                                                   |
+| `KONTINUOUS_BUILD_ID`           |  Current build number                                                                     |
+| `KONTINUOUS_STAGE_ID`           |  Current stage number                                                                     |
+| `KONTINUOUS_BRANCH`             |  Build Branch                                                                             |
+| `KONTINUOUS_NAMESPACE`          |  Namespace defined in the .pipeline.yml                                                   |
+| `KONTINUOUS_ARTIFACT_URL`       |  Artifact path specified by user                                                          | 
+| `KONTINUOUS_INTERNAL_REGISTRY`  |  Used by kontinuous as its own registry. Default value from System env. INTERNAL_REGISTRY |
+| `KONTINUOUS_COMMIT`             |  The commit of the build                                                                  |
+| `KONTINUOUS_URL`                |  Current url of Kontinuous                                                                |
+
 
 ### Stages
 
@@ -164,11 +193,58 @@ Optional params:
 
 #### deploy
 
-Deploys a kubernetes spec.
+Deploys a kubernetes spec in the cluster. 
 
-Required params:
+Params:
 
-| Parameter   | Description                        |
-|-------------|------------------------------------|
-| deploy_file | the kubernetes spec file to deploy |
+| Parameter   | Description                                       |
+|-------------|---------------------------------------------------|
+| deploy_file | the kubernetes spec file to deploy                |
+| deploy_dir  | the directory for kubernetes  spec files to deploy|
 
+Note: Specification files in yaml format supports template. 
+
+
+#### vars and secrets
+
+Stage specific vars and secrets. 
+
+Notes: If vars and secrets exists in the global scope, stage vars and secrets will override the value.
+
+## Templates
+
+Kontinuous supports template in `.pipeline.yml`, `deploy_file` and files in under `deploy_dir` directory.
+
+```
+Syntax:
+ {{.<template variable>}}
+```
+
+```
+eg. 
+...
+metadata:
+  name: {{.name}}
+  namespace: {{.namespace}}
+
+```
+
+To supply value in a template field you may use `vars`
+
+```
+eg.
+vars:
+  name: kontinuous
+  namespace: acaleph
+```
+
+Kontinuous replaces the template field with the corresponding `vars` value.
+
+```
+eg. 
+...
+metadata:
+  name: kontinuous
+  namespace: acaleph
+
+```
