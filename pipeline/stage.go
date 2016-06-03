@@ -122,6 +122,8 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 	}
 	secrets := strings.Join(s.Secrets, ",")
 	if err = kvClient.Put(stagePrefix+"/secrets", secrets); err != nil {
+		return handleSaveError(stagePrefix, isNew, err, kvClient)
+	}
 	vars, _ := json.Marshal(s.Vars)
 	if err = kvClient.Put(stagePrefix+"/vars", string(vars)); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
@@ -155,7 +157,7 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 }
 
 // UpdateStatus updates the status of a build stage
-func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVClient, c scm.Client) (*Stage, error) {
+func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kvClient kv.KVClient, c scm.Client) (*Stage, error) {
 	var scmStatus string
 	// only update build status when job is running or has failed
 	// update success only if this is the last stage
@@ -184,11 +186,11 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVCli
 
 	// ideally only build will be saved, which will also update the stage details
 	namespace := fmt.Sprintf("%s%s/builds/%d/stages", pipelineNamespace, b.Pipeline, b.Number)
-	if err := s.Save(namespace, kv); err != nil {
+	if err := s.Save(namespace, kvClient); err != nil {
 		return nil, err
 	}
 
-	if err := b.Save(kv); err != nil {
+	if err := b.Save(kvClient); err != nil {
 		return nil, err
 	}
 
@@ -203,7 +205,7 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVCli
 		nextIdx := s.Index + 1
 		var nextStage *Stage
 
-		if nextStage, _ = b.GetStage(nextIdx, kv); nextStage != nil {
+		if nextStage, _ = b.GetStage(nextIdx, kvClient); nextStage != nil {
 			b.CurrentStage = nextIdx
 		} else {
 			// update build to finished if stage doesn't have a successor
@@ -211,7 +213,7 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVCli
 			b.Finished = u.Timestamp
 		}
 
-		if err := b.Save(kv); err != nil {
+		if err := b.Save(kvClient); err != nil {
 			return nil, err
 		}
 
@@ -221,7 +223,7 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kv kv.KVCli
 	}
 
 	if b.Finished != 0 {
-		err := b.Notify(kv)
+		err := b.Notify(kvClient)
 		if err != nil {
 			return nil, err
 		}
