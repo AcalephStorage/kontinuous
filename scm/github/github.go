@@ -122,7 +122,7 @@ func (gc *Client) GetDirectoryContent(owner, repo, path, ref string) ([]interfac
 		return nil, false
 	}
 
-	contents := make([]interface{}, len(dircontents))
+	contents := make([]interface{}, 0)
 	for _, content := range dircontents {
 		buf := bytes.Buffer{}
 		val := reflect.ValueOf(content.Path)
