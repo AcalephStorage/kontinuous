@@ -1,7 +1,9 @@
 package github
 
 import (
+	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"encoding/json"
@@ -107,6 +109,33 @@ func (gc *Client) GetContents(owner, repo, path, ref string) (*scm.RepositoryCon
 		Content: file.Content,
 		SHA:     file.SHA,
 	}, true
+}
+
+//GetDirectoryContents gets the metadata and the contents a directory
+func (gc *Client) GetDirectoryContent(owner, repo, path, ref string) ([]interface{}, bool) {
+	_, dircontents, _, err := gc.client().Repositories.GetContents(owner,
+		repo,
+		path,
+		&github.RepositoryContentGetOptions{ref})
+
+	if err != nil || len(dircontents) == 0 {
+		return nil, false
+	}
+
+	contents := make([]interface{}, 0)
+	for _, content := range dircontents {
+		buf := bytes.Buffer{}
+		val := reflect.ValueOf(content.Path)
+		v := reflect.Indirect(val)
+		fmt.Fprintf(&buf, `%s`, v)
+		contentPath := buf.String()
+		decoded, ok := gc.GetFileContent(owner, repo, contentPath, ref)
+		if !ok {
+			continue
+		}
+		contents = append(contents, decoded)
+	}
+	return contents, true
 }
 
 // CreateFile commits a new file to a repository

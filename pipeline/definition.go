@@ -3,14 +3,13 @@ package pipeline
 import (
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"encoding/base64"
-	"encoding/json"
-
-	"github.com/ghodss/yaml"
-
 	"github.com/AcalephStorage/kontinuous/scm"
+	"github.com/ghodss/yaml"
 )
 
 type (
@@ -26,6 +25,7 @@ type (
 		Stages    []Stage                `json:"stages"`
 		Notifiers []*Notifier            `json:"notif,omitempty"`
 		Secrets   []string               `json:"secrets,omitempty"`
+		Vars      map[string]interface{} `json:"vars,omitempty"`
 	}
 )
 
@@ -115,8 +115,15 @@ func GetDefinition(definition []byte) (payload *Definition, err error) {
 		return nil, errors.New("Empty YAML file")
 	}
 
-	data, err := yaml.YAMLToJSON(definition)
-	if err = json.Unmarshal(data, &payload); err != nil {
+	definitionStr := string(definition)
+	re := regexp.MustCompile(`(?m)(:{1}.*\{\{\..*?$)`)
+	for _, v := range re.FindAllString(definitionStr, -1) {
+		v = strings.TrimPrefix(v, ":")
+		definitionStr = strings.Replace(definitionStr, v, fmt.Sprintf(" \"%s \" ", v), -1)
+	}
+
+	if err = yaml.Unmarshal([]byte(definitionStr), &payload); err != nil {
+		fmt.Println("error unmarshalling", err.Error())
 		return nil, err
 	}
 

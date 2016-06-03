@@ -8,7 +8,6 @@ import (
 
 	etcd "github.com/coreos/etcd/client"
 
-	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 )
@@ -53,6 +52,7 @@ type Stage struct {
 	PodName     string                 `json:"pod_name,omitempty"`
 	DockerImage string                 `json:"docker_image,omitempty"`
 	Artifacts   []string               `json:"artifacts,omitempty"`
+	Vars        map[string]interface{} `json:"vars"`
 }
 
 func getStage(path string, kvClient kv.KVClient) *Stage {
@@ -61,6 +61,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 	finished, _ := kvClient.Get(path + "/finished")
 	params, _ := kvClient.Get(path + "/params")
 	labels, _ := kvClient.Get(path + "/labels")
+	vars, _ := kvClient.Get(path + "/vars")
 
 	s.ID, _ = kvClient.Get(path + "/uuid")
 	s.Index, _ = kvClient.GetInt(path + "/index")
@@ -77,6 +78,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 
 	json.Unmarshal([]byte(params), &s.Params)
 	json.Unmarshal([]byte(labels), &s.Labels)
+	json.Unmarshal([]byte(vars), &s.Vars)
 
 	return s
 }
@@ -114,6 +116,11 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 	if err = kvClient.Put(stagePrefix+"/labels", string(labels)); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
 	}
+	vars, _ := json.Marshal(s.Vars)
+	if err = kvClient.Put(stagePrefix+"/vars", string(vars)); err != nil {
+		return handleSaveError(stagePrefix, isNew, err, kvClient)
+	}
+
 	if err = kvClient.PutInt(stagePrefix+"/index", s.Index); err != nil {
 		return handleSaveError(stagePrefix, isNew, err, kvClient)
 	}
@@ -135,31 +142,6 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 	}
 	if err = kvClient.Put(stagePrefix+"/finished", strconv.FormatInt(s.Finished, 10)); err != nil {
 		kvClient.DeleteTree(namespace)
-		return err
-	}
-
-	return nil
-}
-
-func (s *Stage) Deploy(p *Pipeline, b *Build, c scm.Client) error {
-
-	deployFile := fmt.Sprintf("%v", s.Params["deploy_file"])
-	ref := b.Commit
-	if ref == "" {
-		ref = b.Branch
-	}
-
-	file, ok := c.GetFileContent(p.Owner, p.Repo, deployFile, b.Commit)
-
-	if !ok {
-		return fmt.Errorf("%s not found for %s/%s on %s",
-			deployFile,
-			p.Owner,
-			p.Repo,
-			ref)
-	}
-	kubeClient, _ := kube.NewClient("https://kubernetes.default")
-	if err := kubeClient.DeployResourceFile(file); err != nil {
 		return err
 	}
 
