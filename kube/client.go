@@ -34,10 +34,9 @@ type realKubeClient struct {
 
 // NewClient returns a new KubeClient connecting to the address. This uses the service
 // account credentials
-func NewClient(address string) (KubeClient, error) {
+func NewClient(address, ca, token string) (KubeClient, error) {
 	// create tls client
-	cacertFile := "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	capem, err := ioutil.ReadFile(cacertFile)
+	capem, err := ioutil.ReadFile(ca)
 	if err != nil {
 		return nil, err
 	}
@@ -50,12 +49,11 @@ func NewClient(address string) (KubeClient, error) {
 
 	// read token
 	client := &http.Client{Transport: transport}
-	tokenFile := "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	token, err := ioutil.ReadFile(tokenFile)
+	t, err := ioutil.ReadFile(token)
 	if err != nil {
 		return nil, err
 	}
-	return &realKubeClient{client, address, string(token)}, nil
+	return &realKubeClient{client, address, string(t)}, nil
 }
 
 // Create a new kubernetes Job with the given job

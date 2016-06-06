@@ -17,7 +17,19 @@ import (
 
 // Client is used for making requests to GitHub
 type Client struct {
-	token string
+	githubClient *github.Client
+}
+
+// NewClientFromToken returns a new github client from the given github token
+func NewClientFromToken(token string) *Client {
+	t := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	c := oauth2.NewClient(oauth2.NoContext, t)
+	gc := github.NewClient(c)
+	return &Client{githubClient: gc}
+}
+
+func NewClientFromAuthCode(authCode, state string) (*Client, error) {
+
 }
 
 func (gc *Client) client() *github.Client {
