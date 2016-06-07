@@ -21,6 +21,7 @@ type (
 		PodName     string `json:"pod_name"`
 		Timestamp   int64  `json:"timestamp"`
 		DockerImage string `json:"docker_image"`
+		Message     string `json:"message"`
 	}
 
 	// JobBuildInfo contains the required details for creating a job
@@ -177,6 +178,10 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kvClient kv
 		b.Finished = u.Timestamp
 		s.Finished = u.Timestamp
 		scmStatus = scm.StateFailure
+	case BuildWaiting:
+		b.Status = BuildWaiting
+		s.Started = u.Timestamp
+		scmStatus = scm.StatePending
 	}
 
 	s.Status = u.Status
