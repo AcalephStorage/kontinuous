@@ -16,7 +16,7 @@ import (
 
 // PipelineResource defines the endpoints of a Pipeline
 type PipelineResource struct {
-	kv.KVClient
+	kv.Client
 	*mc.MinioClient
 	kube.KubeClient
 }
@@ -36,51 +36,62 @@ func (p *PipelineResource) Register(container *restful.Container) {
 	ws.Route(ws.GET("").To(p.list).
 		Doc("Get all pipelines").
 		Operation("list").
-		Writes([]ps.Pipeline{}).
-		Filter(authenticate).
-		Filter(requireAccessToken))
+		Writes([]ps.Pipeline{}))
+	// FIXME: fix filters
+	// Writes([]ps.Pipeline{}).
+	// Filter(authenticate).
+	// Filter(requireAccessToken))
 
 	ws.Route(ws.POST("").To(p.create).
 		Doc("Create new pipeline").
 		Operation("create").
 		Reads(ps.Pipeline{}).
-		Writes(ps.Pipeline{}).
-		Filter(authenticate).
-		Filter(requireAccessToken))
+		Writes([]ps.Pipeline{}))
+	// FIXME: fix filters
+	// Writes([]ps.Pipeline{}).
+	// Filter(authenticate).
+	// Filter(requireAccessToken))
 
 	ws.Route(ws.POST("/login").To(p.login).
 		Doc("Save SCM user details").
 		Operation("login").
 		Reads(ps.User{}).
-		Writes(ps.User{}).
-		Operation("login").
-		Filter(authenticate))
+		Writes(ps.User{}))
+	// FIXME: fix filters
+	// Writes(ps.User{}).
+	// Filter(authenticate))
 
 	ws.Route(ws.GET("/{owner}/{repo}").To(p.show).
 		Doc("Show pipeline details").
 		Operation("show").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
-		Writes(ps.Pipeline{}).
-		Filter(authenticate).
-		Filter(requireAccessToken))
+		Writes([]ps.Pipeline{}))
+	// FIXME: fix filters
+	// Writes([]ps.Pipeline{}).
+	// Filter(authenticate).
+	// Filter(requireAccessToken))
 
 	ws.Route(ws.DELETE("/{owner}/{repo}").To(p.delete).
 		Doc("Delete pipeline").
 		Operation("delete").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
-		Writes(ps.Pipeline{}).
-		Filter(authenticate).
-		Filter(requireAccessToken))
+		Writes([]ps.Pipeline{}))
+	// FIXME: fix filters
+	// Writes([]ps.Pipeline{}).
+	// Filter(authenticate).
+	// Filter(requireAccessToken))
 
 	ws.Route(ws.GET("/{owner}/{repo}/definition").To(p.definition).
 		Doc("Get pipeline details of the repository").
 		Operation("definition").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
-		Writes(ps.DefinitionFile{}).
-		Filter(requireAccessToken))
+		Writes(ps.DefinitionFile{}))
+	// FIXME: fix filters
+	// Writes(ps.DefinitionFile{}).
+	// Filter(requireAccessToken))
 
 	ws.Route(ws.GET("/{owner}/{repo}/definition/{ref}").To(p.definition).
 		Doc("Get pipeline details of the repository").
@@ -88,23 +99,27 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
 		Param(ws.PathParameter("ref", "commit or branch").DataType("string")).
-		Writes(ps.DefinitionFile{}).
-		Filter(requireAccessToken))
+		Writes(ps.DefinitionFile{}))
+	// FIXME: fix filters
+	// Writes(ps.DefinitionFile{}).
+	// Filter(requireAccessToken))
 
 	ws.Route(ws.POST("/{owner}/{repo}/definition").To(p.updateDefinition).
 		Doc("Update definition file of the pipeline, creates one if it does not exist").
 		Operation("updateDefinition").
 		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
-		Writes(ps.DefinitionFile{}).
-		Filter(requireAccessToken))
+		Writes(ps.DefinitionFile{}))
+	// FIXME: fix filters
+	// Writes(ps.DefinitionFile{}).
+	// Filter(requireAccessToken))
 
 	buildResource := &BuildResource{
-		KVClient:    p.KVClient,
+		Client:      p.Client,
 		MinioClient: p.MinioClient,
 	}
 	stageResource := &StageResource{
-		KVClient:    p.KVClient,
+		Client:      p.Client,
 		MinioClient: p.MinioClient,
 		KubeClient:  p.KubeClient,
 	}
@@ -124,20 +139,20 @@ func (p *PipelineResource) create(req *restful.Request, res *restful.Response) {
 	}
 
 	// save user token if not saved already (for remote access)
-	if _, exists := ps.FindUser(pipeline.Login, p.KVClient); !exists {
+	if _, exists := ps.FindUser(pipeline.Login, p.Client); !exists {
 		u := &ps.User{
 			Name:     pipeline.Login,
 			RemoteID: pipeline.Login,
 			Token:    req.HeaderParameter("Authorization"),
 		}
 
-		if err := u.Save(p.KVClient); err != nil {
+		if err := u.Save(p.Client); err != nil {
 			jsonError(res, http.StatusInternalServerError, err, "Unable to save user details")
 			return
 		}
 	}
 
-	if err := ps.CreatePipeline(pipeline, client, p.KVClient); err != nil {
+	if err := ps.CreatePipeline(pipeline, client, p.Client); err != nil {
 		jsonError(res, 422, err, "Unable to create pipeline")
 		return
 	}
@@ -148,13 +163,13 @@ func (p *PipelineResource) create(req *restful.Request, res *restful.Response) {
 func (p *PipelineResource) delete(req *restful.Request, res *restful.Response) {
 	owner := req.PathParameter("owner")
 	repo := req.PathParameter("repo")
-	pipeline, err := findPipeline(owner, repo, p.KVClient)
+	pipeline, err := findPipeline(owner, repo, p.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
 		return
 	}
 
-	if err := pipeline.DeletePipeline(p.KVClient, p.MinioClient); err != nil {
+	if err := pipeline.DeletePipeline(p.Client, p.MinioClient); err != nil {
 		jsonError(res, http.StatusInternalServerError, err, fmt.Sprintf("Unable to delete pipeline %s/%s", owner, repo))
 		return
 	}
@@ -164,7 +179,7 @@ func (p *PipelineResource) delete(req *restful.Request, res *restful.Response) {
 }
 
 func (p *PipelineResource) list(req *restful.Request, res *restful.Response) {
-	pipelines, err := ps.FindAllPipelines(p.KVClient)
+	pipelines, err := ps.FindAllPipelines(p.Client)
 	if err != nil {
 		jsonError(res, http.StatusInternalServerError, err, "Unable to list pipelines")
 		return
@@ -176,7 +191,7 @@ func (p *PipelineResource) list(req *restful.Request, res *restful.Response) {
 func (p *PipelineResource) show(req *restful.Request, res *restful.Response) {
 	owner := req.PathParameter("owner")
 	repo := req.PathParameter("repo")
-	pipeline, err := findPipeline(owner, repo, p.KVClient)
+	pipeline, err := findPipeline(owner, repo, p.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
 		return
@@ -192,7 +207,7 @@ func (p *PipelineResource) login(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	if err := user.Save(p.KVClient); err != nil {
+	if err := user.Save(p.Client); err != nil {
 		jsonError(res, http.StatusInternalServerError, err, "Unable to save user details")
 		return
 	}
@@ -206,7 +221,7 @@ func (p *PipelineResource) definition(req *restful.Request, res *restful.Respons
 	repo := req.PathParameter("repo")
 	ref := req.PathParameter("ref")
 
-	pipeline, err := findPipeline(owner, repo, p.KVClient)
+	pipeline, err := findPipeline(owner, repo, p.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
 		return
@@ -226,7 +241,7 @@ func (p *PipelineResource) updateDefinition(req *restful.Request, res *restful.R
 	owner := req.PathParameter("owner")
 	repo := req.PathParameter("repo")
 
-	pipeline, err := findPipeline(owner, repo, p.KVClient)
+	pipeline, err := findPipeline(owner, repo, p.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
 		return

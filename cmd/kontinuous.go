@@ -12,10 +12,10 @@ import (
 	"github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/swagger"
 	"github.com/urfave/cli"
-	"golang.org/x/net/http2"
 
 	"github.com/AcalephStorage/kontinuous/api"
 	"github.com/AcalephStorage/kontinuous/controller"
+	"github.com/AcalephStorage/kontinuous/store/kv"
 )
 
 // app name and version. this are placed in var so we can change them in runtime if needed.
@@ -30,6 +30,9 @@ const (
 	bindHostFlag      = "bind-host"
 	bindPortFlag      = "bind-port"
 	kvAddressFlag     = "kv-address"
+	kvCAFlag          = "kv-ca"
+	kvCertFlag        = "kv-cert"
+	kvKeyFlag         = "kv-key"
 	s3urlFlag         = "s3-url"
 	kubeURLFlag       = "kube-url"
 	swaggerUIPathFlag = "swagger-ui-path"
@@ -45,6 +48,7 @@ const (
 	normal = iota
 	loadSecretsError
 	kubeClientError
+	kvClientError
 )
 
 // the global app flags
@@ -74,6 +78,24 @@ var appFlags = []cli.Flag{
 		Usage:  "address of etcd",
 	},
 	cli.StringFlag{
+		Name:   kvCAFlag,
+		EnvVar: "KONTINUOUS_KV_CA",
+		Value:  "",
+		Usage:  "path to the CA file used by etcd",
+	},
+	cli.StringFlag{
+		Name:   kvCertFlag,
+		EnvVar: "KONTINUOUS_KV_CERT",
+		Value:  "",
+		Usage:  "path to the cert file used by etcd",
+	},
+	cli.StringFlag{
+		Name:   kvKeyFlag,
+		EnvVar: "KONTINUOUS_KV_KEY",
+		Value:  "",
+		Usage:  "path to the key file used by etcd",
+	},
+	cli.StringFlag{
 		Name:   s3urlFlag,
 		EnvVar: "KONTINUOUS_S3_URL",
 		Value:  "",
@@ -93,29 +115,33 @@ var appFlags = []cli.Flag{
 	},
 	cli.StringFlag{
 		Name:   jwtSecretsFlag,
-		EnvVar: "KONTINUOUS_jwt_SECRETS",
-		Value:  "/.kontinuous/secrets/jwt",
+		EnvVar: "KONTINUOUS_JWT_SECRETS",
+		Value:  "/.kontinuous/secrets/jwt/jwt.json",
 		Usage:  "path to the kontinuous secrets json file",
 	},
 	cli.StringFlag{
 		Name:   s3SecretsFlag,
 		EnvVar: "KONTINUOUS_S3_SECRETS",
-		Value:  "/.kontinuous/secrets/s3",
+		Value:  "/.kontinuous/secrets/s3/s3.json",
+		Usage:  "path to the s3 secrets file",
 	},
 	cli.StringFlag{
 		Name:   githubSecretsFlag,
 		EnvVar: "KONTINUOUS_GITHUB_SECRETS",
-		Value:  "/.kontinuous/secrets/github",
+		Value:  "/.kontinuous/secrets/github/github.json",
+		Usage:  "path to the github secrets file",
 	},
 	cli.StringFlag{
 		Name:   kubeTokenFlag,
 		EnvVar: "KONTINUOUS_KUBE_TOKEN",
 		Value:  "/var/run/secrets/kubernetes.io/serviceaccount/token",
+		Usage:  "path to the kube token file",
 	},
 	cli.StringFlag{
 		Name:   kubeCAFlag,
 		EnvVar: "KONTINUOUS_KUBE_CA",
 		Value:  "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+		Usage:  "path to the kube CA file",
 	},
 }
 
@@ -184,8 +210,20 @@ func start(context *cli.Context) error {
 	// create restful container
 	container := kontinuousRestfulContainer()
 
+	// create backends
+	cacert := context.String(kvCAFlag)
+	cert := context.String(kvCertFlag)
+	key := context.String(kvKeyFlag)
+	address := context.String(kvAddressFlag)
+	kvClient, err := createKVClient(cacert, cert, key, address)
+	if err != nil {
+		msg := "unable to create kv client"
+		log.WithError(err).Errorln(msg)
+		return cli.NewExitError(msg, kvClientError)
+	}
+
 	// create resources
-	auth := createAuthResource(jwtSecrets, githubSecrets)
+	auth := createAuthResource(kvClient, jwtSecrets, githubSecrets)
 	pipeline := new(api.PipelineResource)
 	repo := new(api.RepositoryResource)
 
@@ -213,7 +251,6 @@ func start(context *cli.Context) error {
 	port := context.String(bindPortFlag)
 	addr := net.JoinHostPort(host, port)
 
-	server := &http.Server{Addr: addr}
 	if err := http.ListenAndServe(addr, container); err != nil {
 		log.WithError(err).Errorln("Stopping kontinuous...")
 	}
@@ -228,7 +265,7 @@ func loadSecrets(secrets map[string]interface{}) error {
 			log.WithError(err).Debugf("unable to read secrets file: %s", file)
 			return err
 		}
-		if err := json.Unmarshal(secrets, data); err != nil {
+		if err := json.Unmarshal(content, data); err != nil {
 			log.WithError(err).Debugf("unable to decode json from secrets file: %s", file)
 			return err
 		}
@@ -247,13 +284,34 @@ func kontinuousRestfulContainer() *restful.Container {
 	return container
 }
 
-func createAuthResource(jwtSecrets JWTSecrets, githubSecrets GithubSecrets) *api.AuthResource {
+func createKVClient(cacert, cert, key, address string) (kv.Client, error) {
+	kvClient, err := kv.NewEtcdClient(cacert, cert, key, address)
+	if err != nil {
+		log.WithError(err).Debug("unable to create etcd client")
+		return nil, err
+	}
+	return kvClient, nil
+}
+
+func createAuthResource(kvClient kv.Client, jwtSecrets JWTSecrets, githubSecrets GithubSecrets) *api.AuthResource {
+	// datastore
+	userStore := &kv.UserStore{KVClient: kvClient}
+	userMapStore := &kv.UserMapStore{KVClient: kvClient}
+
+	// controller
+	userController := &controller.UserController{
+		UserStore:    userStore,
+		UserMapStore: userMapStore,
+	}
 	controller := &controller.AuthController{
+		UserController:     userController,
 		JWTSecret:          jwtSecrets.Secret,
 		GithubClientID:     githubSecrets.GithubClientID,
 		GithubClientSecret: githubSecrets.GithubClientSecret,
 	}
-	authFilter := api.AuthFilter{AuthController: controller}
-	authResource := api.AuthResource{AuthController: controller, AuthFilter: authFilter}
+	authFilter := &api.AuthFilter{AuthController: controller}
+
+	// resource
+	authResource := &api.AuthResource{AuthController: controller, AuthFilter: authFilter}
 	return authResource
 }

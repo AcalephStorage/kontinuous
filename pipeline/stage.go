@@ -57,7 +57,7 @@ type Stage struct {
 	Vars        map[string]interface{} `json:"vars"`
 }
 
-func getStage(path string, kvClient kv.KVClient) *Stage {
+func getStage(path string, kvClient kv.Client) *Stage {
 	s := new(Stage)
 	started, _ := kvClient.Get(path + "/started")
 	finished, _ := kvClient.Get(path + "/finished")
@@ -88,7 +88,7 @@ func getStage(path string, kvClient kv.KVClient) *Stage {
 }
 
 // Save persists the stage details to `etcd`
-func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
+func (s *Stage) Save(namespace string, kvClient kv.Client) (err error) {
 	stagePrefix := namespace + "/" + strconv.Itoa(s.Index)
 	isNew := false
 
@@ -157,7 +157,7 @@ func (s *Stage) Save(namespace string, kvClient kv.KVClient) (err error) {
 }
 
 // UpdateStatus updates the status of a build stage
-func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kvClient kv.KVClient, c scm.Client) (*Stage, error) {
+func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kvClient kv.Client, c scm.Client) (*Stage, error) {
 	var scmStatus string
 	// only update build status when job is running or has failed
 	// update success only if this is the last stage

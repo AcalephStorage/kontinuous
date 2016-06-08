@@ -49,7 +49,7 @@ type BuildSummary struct {
 	Author   string `json:"author"`
 }
 
-func getBuild(path string, kvClient kv.KVClient) *Build {
+func getBuild(path string, kvClient kv.Client) *Build {
 	b := new(Build)
 	b.ID, _ = kvClient.Get(path + "/uuid")
 	b.Status, _ = kvClient.Get(path + "/status")
@@ -72,7 +72,7 @@ func getBuild(path string, kvClient kv.KVClient) *Build {
 	return b
 }
 
-func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
+func getBuildSummary(path string, kvClient kv.Client) *BuildSummary {
 	b := new(BuildSummary)
 	b.ID, _ = kvClient.Get(path + "/uuid")
 	b.Status, _ = kvClient.Get(path + "/status")
@@ -90,7 +90,7 @@ func getBuildSummary(path string, kvClient kv.KVClient) *BuildSummary {
 	return b
 }
 
-func (b *Build) Delete(pipelinesID string, kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
+func (b *Build) Delete(pipelinesID string, kvClient kv.Client, mcClient *mc.MinioClient) (err error) {
 	path := fmt.Sprintf("%s%s/builds/%d", pipelineNamespace, b.Pipeline, b.Number)
 	buildsPrefix := fmt.Sprintf("pipelines/%s/builds/%d", pipelinesID, b.Number)
 	bucket := "kontinuous"
@@ -108,7 +108,7 @@ func (b *Build) Delete(pipelinesID string, kvClient kv.KVClient, mcClient *mc.Mi
 }
 
 // Save persists the build details to `etcd`
-func (b *Build) Save(kvClient kv.KVClient) (err error) {
+func (b *Build) Save(kvClient kv.Client) (err error) {
 	buildsPrefix := fmt.Sprintf("%s%s/builds", pipelineNamespace, b.Pipeline)
 	path := fmt.Sprintf("%s/%d", buildsPrefix, b.Number)
 	isNew := false
@@ -171,7 +171,7 @@ func (b *Build) Save(kvClient kv.KVClient) (err error) {
 }
 
 // CreateStages perists the build's stage details
-func (b *Build) CreateStages(kvClient kv.KVClient) (err error) {
+func (b *Build) CreateStages(kvClient kv.Client) (err error) {
 	buildsPrefix := fmt.Sprintf("%s%s/builds", pipelineNamespace, b.Pipeline)
 	stagesPrefix := fmt.Sprintf("%s/%d/stages", buildsPrefix, b.Number)
 	p := getPipeline(fmt.Sprintf("%s%s", pipelineNamespace, b.Pipeline), kvClient)
@@ -216,7 +216,7 @@ func parseStageTemplate(stage *Stage, varMaps ...map[string]interface{}) error {
 }
 
 // GetStages fetches all stages of the build from the store
-func (b *Build) GetStages(kvClient kv.KVClient) ([]*Stage, error) {
+func (b *Build) GetStages(kvClient kv.Client) ([]*Stage, error) {
 	stagesPrefix := fmt.Sprintf("%s%s/builds/%d/stages", pipelineNamespace, b.Pipeline, b.Number)
 	stageDirs, err := kvClient.GetDir(stagesPrefix)
 	if err != nil {
@@ -235,7 +235,7 @@ func (b *Build) GetStages(kvClient kv.KVClient) ([]*Stage, error) {
 }
 
 // GetStage fetches a specific stage by its index
-func (b *Build) GetStage(idx int, kvClient kv.KVClient) (*Stage, bool) {
+func (b *Build) GetStage(idx int, kvClient kv.Client) (*Stage, bool) {
 	path := fmt.Sprintf("%s%s/builds/%d/stages/%d", pipelineNamespace, b.Pipeline, b.Number, idx)
 	_, err := kvClient.GetDir(path)
 	if err != nil || etcd.IsKeyNotFound(err) {
@@ -245,7 +245,7 @@ func (b *Build) GetStage(idx int, kvClient kv.KVClient) (*Stage, bool) {
 	return getStage(path, kvClient), true
 }
 
-func (b *Build) Notify(kvClient kv.KVClient) error {
+func (b *Build) Notify(kvClient kv.Client) error {
 	stageStatus := b.getStatus(kvClient)
 	p := getPipeline(fmt.Sprintf("%s%s", pipelineNamespace, b.Pipeline), kvClient)
 	var appNotifier notif.AppNotifier
@@ -279,7 +279,8 @@ func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata 
 	secrets := make(map[string]string)
 
 	for _, secretName := range pipelineSecrets {
-		kubeClient, _ := kube.NewClient("https://kubernetes.default")
+		// FIXME: kube client shouldn't be defined here.
+		kubeClient, _ := kube.NewClient("", "", "https://kubernetes.default")
 		secretEnv, err := kubeClient.GetSecret(namespace, secretName)
 		if err != nil {
 			continue
@@ -297,7 +298,7 @@ func (b *Build) getSecrets(pipelineSecrets []string, namespace string, metadata 
 	return updatedMetadata
 }
 
-func (b *Build) getStatus(kvClient kv.KVClient) []notif.StageStatus {
+func (b *Build) getStatus(kvClient kv.Client) []notif.StageStatus {
 
 	stages := []notif.StageStatus{}
 	storedStages, err := b.GetStages(kvClient)

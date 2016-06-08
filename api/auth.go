@@ -1,23 +1,12 @@
 package api
 
 import (
-	"errors"
-	"fmt"
-	"os"
-	"strings"
-
-	"encoding/base64"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
-	"net/url"
 
 	log "github.com/Sirupsen/logrus"
-
 	"github.com/emicklei/go-restful"
 
 	"github.com/AcalephStorage/kontinuous/controller"
-	"github.com/AcalephStorage/kontinuous/store/kv"
 )
 
 // AuthResource identifies the Auth API
@@ -38,9 +27,8 @@ func (a *AuthResource) Register(container *restful.Container) {
 
 	ws.
 		Path("/login").
-		Consumes(restful.MIME_JSON).
-		Produces(restful.MIME_JSON).
-		Filter(ncsaCommonLogFormatLogger)
+		Produces(restful.MIME_JSON) //.
+		// Filter(ncsaCommonLogFormatLogger)
 
 	ws.Route(ws.POST("github").To(a.githubLogin).
 		Writes(AuthResponse{}).
@@ -74,13 +62,14 @@ type AuthFilter struct {
 func (af *AuthFilter) requireBearerToken(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	authorization := req.HeaderParameter("Authorization")
 
-	valid, err := controller.AuthController.ValidateHeaderToken(authorization)
+	valid, err := af.AuthController.ValidateHeaderToken(authorization)
 	if err != nil {
 		jsonError(res, http.StatusUnauthorized, err, "error while validating token")
 		return
 	}
 	if !valid {
-		res.WriteServiceError(http.StatusUnauthorized, errors.New("Unauthorized request"))
+		serviceError := restful.ServiceError{Code: http.StatusUnauthorized, Message: "Unauthorized request"}
+		res.WriteServiceError(http.StatusUnauthorized, serviceError)
 		return
 	}
 	chain.ProcessFilter(req, res)
@@ -89,13 +78,14 @@ func (af *AuthFilter) requireBearerToken(req *restful.Request, res *restful.Resp
 func (af *AuthFilter) requireIDToken(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	idToken := req.QueryParameter("id_token")
 
-	valid, err := controller.AuthController.ValidateJWT(idToken)
+	valid, err := af.AuthController.ValidateJWT(idToken)
 	if err != nil {
 		jsonError(res, http.StatusUnauthorized, err, "error while validating token")
 		return
 	}
 	if !valid {
-		res.WriteServiceError(http.StatusUnauthorized, errors.New("Unauthorized request"))
+		serviceError := restful.ServiceError{Code: http.StatusUnauthorized, Message: "Unauthorized request"}
+		res.WriteServiceError(http.StatusUnauthorized, serviceError)
 		return
 	}
 	chain.ProcessFilter(req, res)

@@ -22,9 +22,11 @@ func (r *RepositoryResource) Register(container *restful.Container) {
 		Produces(restful.MIME_JSON).
 		Doc("manage repositories").
 		Produces(restful.MIME_JSON).
-		Filter(ncsaCommonLogFormatLogger).
-		Filter(authenticate).
-		Filter(requireAccessToken)
+		Filter(ncsaCommonLogFormatLogger)
+		// FIXME: fix filters
+		// Filter(ncsaCommonLogFormatLogger).
+		// Filter(authenticate).
+		// Filter(requireAccessToken)
 
 	ws.Route(ws.GET("").To(r.list).
 		Doc("Get all repositories accessible by the current user").

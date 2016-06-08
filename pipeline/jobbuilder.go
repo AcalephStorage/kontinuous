@@ -300,7 +300,8 @@ func createCommandContainer(stage *Stage, jobInfo *JobBuildInfo) *kube.Container
 }
 
 func deployJob(j *kube.Job) error {
-	kubeClient, _ := kube.NewClient("https://kubernetes.default")
+	// FIXME: kube client shouldn't be defined here
+	kubeClient, _ := kube.NewClient("", "", "https://kubernetes.default")
 	return kubeClient.CreateJob(j)
 }
 
@@ -312,7 +313,8 @@ func setContainerEnv(container *kube.Container, envVars map[string]string) {
 }
 
 func getSecrets(namespace string, allSecrets ...[]string) map[string]string {
-	kubeClient, _ := kube.NewClient("https://kubernetes.default")
+	// FIXME: kube client shouldn't be defined here
+	kubeClient, _ := kube.NewClient("", "", "https://kubernetes.default")
 	secrets := make(map[string]string)
 
 	for _, secretArr := range allSecrets {

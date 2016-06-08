@@ -10,7 +10,7 @@ func generateUUID() string {
 	return uuid.NewV4().String()
 }
 
-func generateSequentialID(namespace string, kvClient kv.KVClient) int {
+func generateSequentialID(namespace string, kvClient kv.Client) int {
 	dirs, err := kvClient.GetDir(namespace)
 	if err != nil {
 		return 1
@@ -19,7 +19,7 @@ func generateSequentialID(namespace string, kvClient kv.KVClient) int {
 	return len(dirs) + 1
 }
 
-func handleSaveError(namespace string, isNew bool, err error, kvClient kv.KVClient) error {
+func handleSaveError(namespace string, isNew bool, err error, kvClient kv.Client) error {
 	if isNew {
 		kvClient.DeleteTree(namespace)
 	}

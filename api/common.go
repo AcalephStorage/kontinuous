@@ -19,7 +19,7 @@ import (
 
 	ps "github.com/AcalephStorage/kontinuous/pipeline"
 	"github.com/AcalephStorage/kontinuous/scm"
-	"github.com/AcalephStorage/kontinuous/scm/github"
+	// "github.com/AcalephStorage/kontinuous/scm/github"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/util"
 	"github.com/dgrijalva/jwt-go"
@@ -68,23 +68,26 @@ func jsonError(res *restful.Response, statusCode int, err error, msg string) {
 	res.WriteServiceError(statusCode, restful.NewError(statusCode, err.Error()))
 }
 
+// FIXME: should not be here
 func newSCMClient(req *restful.Request) scm.Client {
 	// set github as default SCM provider
-	client := new(github.Client)
-	token := req.HeaderParameter("Authorization")
-	accessToken := strings.Replace(token, "Bearer ", "", -1)
+	// client := new(github.Client)
+	// token := req.HeaderParameter("Authorization")
+	// accessToken := strings.Replace(token, "Bearer ", "", -1)
 
-	switch {
-	case req.HeaderParameter("X-Remote-Client") == "github", req.HeaderParameter("X-Github-Event") != "":
-		client = new(github.Client)
-	}
-	client.SetAccessToken(accessToken)
+	// switch {
+	// case req.HeaderParameter("X-Remote-Client") == "github", req.HeaderParameter("X-Github-Event") != "":
+	// 	client = new(github.Client)
+	// }
+	// FIXME
+	// client.SetAccessToken(accessToken)
 
-	return client
+	// FIXME
+	return nil //client
 }
 
 // finders
-func findPipeline(owner, repo string, kvClient kv.KVClient) (*ps.Pipeline, error) {
+func findPipeline(owner, repo string, kvClient kv.Client) (*ps.Pipeline, error) {
 	pipeline, exists := ps.FindPipeline(owner, repo, kvClient)
 	if !exists {
 		err := fmt.Errorf("Pipeline for %s/%s not found.", owner, repo)
@@ -94,7 +97,7 @@ func findPipeline(owner, repo string, kvClient kv.KVClient) (*ps.Pipeline, error
 	return pipeline, nil
 }
 
-func findBuild(buildNumber string, pipeline *ps.Pipeline, kvClient kv.KVClient) (*ps.Build, error) {
+func findBuild(buildNumber string, pipeline *ps.Pipeline, kvClient kv.Client) (*ps.Build, error) {
 	msg := fmt.Errorf("Build %s not found.", buildNumber)
 	num, err := strconv.Atoi(buildNumber)
 	if err != nil {
@@ -109,7 +112,7 @@ func findBuild(buildNumber string, pipeline *ps.Pipeline, kvClient kv.KVClient) 
 	return build, nil
 }
 
-func findStage(stageIndex string, build *ps.Build, kvClient kv.KVClient) (*ps.Stage, error) {
+func findStage(stageIndex string, build *ps.Build, kvClient kv.Client) (*ps.Stage, error) {
 	msg := fmt.Errorf("Stage %s not found.", stageIndex)
 	idx, err := strconv.Atoi(stageIndex)
 	if err != nil {
@@ -124,7 +127,7 @@ func findStage(stageIndex string, build *ps.Build, kvClient kv.KVClient) (*ps.St
 	return stage, nil
 }
 
-func getScopedClient(userID string, kvClient kv.KVClient, req *restful.Request) (scm.Client, error) {
+func getScopedClient(userID string, kvClient kv.Client, req *restful.Request) (scm.Client, error) {
 	client := newSCMClient(req)
 
 	user, exists := ps.FindUser(userID, kvClient)

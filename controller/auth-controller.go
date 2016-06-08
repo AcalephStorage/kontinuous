@@ -5,92 +5,94 @@ import (
 
 	"encoding/base64"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/satori/go.uuid"
+
+	"github.com/AcalephStorage/kontinuous/model"
+	"github.com/AcalephStorage/kontinuous/scm/github"
 )
 
-// AuthController
+// AuthController handles all auth related operations
 type AuthController struct {
+	*UserController
 	JWTSecret          string
 	GithubClientID     string
 	GithubClientSecret string
 }
 
-// type GithubAuthResponse struct {
-// 	AccessToken string `json:"access_token"`
-// }
-
-// a.AuthController.GithubLogin(authCode, state)
-
-// // request url
-// reqUrl := url.URL{
-// 	Scheme: "https",
-// 	Host:   "github.com",
-// 	Path:   "login/oauth/access_token",
-// }
-// q := reqUrl.Query()
-// q.Set("client_id", os.Getenv("GITHUB_CLIENT_ID"))
-// q.Set("client_secret", os.Getenv("GITHUB_CLIENT_SECRET"))
-// q.Set("code", authCode)
-// q.Set("state", state)
-// reqUrl.RawQuery = q.Encode()
-
-// client := &http.Client{}
-
-// r, err := http.NewRequest("POST", reqUrl.String(), nil)
-// if err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Error creating auth request")
-// 	return
-// }
-// r.Header.Add("Accept", "application/json")
-
-// authRes, err := client.Do(r)
-// if err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Error requesting authorization token")
-// 	return
-// }
-// defer authRes.Body.Close()
-
-// body, err := ioutil.ReadAll(authRes.Body)
-// if err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Error reading response body")
-// 	return
-// }
-
-// var ghRes GithubAuthResponse
-// if err := json.Unmarshal(body, &ghRes); err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Error reading json body")
-// 	return
-// }
-
-// accessToken := ghRes.AccessToken
-
-// jwtToken, err := CreateJWT(accessToken, string(dsecret))
-// if err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Unable to create jwt for user")
-// 	return
-// }
-
-// ghUser, err := GetGithubUser(accessToken)
-// if err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Unable to get github user")
-// 	return
-// }
-
-// userID := fmt.Sprintf("github|%v", ghUser.ID)
-// user := &pipeline.User{
-// 	Name:     ghUser.Login,
-// 	RemoteID: userID,
-// 	Token:    accessToken,
-// }
-// if err := user.Save(a.KVClient); err != nil {
-// 	jsonError(res, http.StatusUnauthorized, err, "Unable to register user")
-// 	return
-// }
-
 // GithubLogin handles creating JWT using github credentials
-func (ac *AuthController) GithubLogin(code, state string) (user, token string, err error) {
+func (ac *AuthController) GithubLogin(code, state string) (username, jwt string, err error) {
 	// request access token from github
-	//
+	token, err := github.RequestToken(ac.GithubClientID, ac.GithubClientSecret, code, state)
+	if err != nil {
+		log.WithError(err).Debug("unable to request access token")
+		return
+	}
+
+	// get user from github
+	gc := github.NewClient(token)
+	ghUser, err := gc.GetAuthenticatedUser()
+	if err != nil {
+		log.WithError(err).Debug("unable to get authenticated github user")
+		return
+	}
+
+	// create or update user
+	username = *ghUser.Login
+
+	rawEmails, err := gc.GetAuthenticatedUserEmails()
+	if err != nil {
+		log.WithError(err).Debug("unable to get authenticated github user's email")
+		return
+	}
+
+	emails := make([]string, len(rawEmails))
+	for i, re := range rawEmails {
+		emails[i] = *re.Email
+	}
+
+	user, err := ac.UserController.GetUser(model.GithubUser, username)
+	if user == nil || err != nil {
+		// create user
+		user = &model.User{
+			Name:   username,
+			Emails: emails,
+			UUID:   uuid.NewV4().String(),
+			Keys: map[model.UserType]string{
+				model.GithubUser: token,
+			},
+		}
+		err = ac.UserController.SaveUser(model.GithubUser, username, user)
+		if err != nil {
+			log.WithError(err).Debug("unable to create kontinuous user")
+			return
+		}
+	} else {
+		// update user
+		if user.Emails == nil {
+			user.Emails = []string{}
+		}
+		// FIXME: should not just append
+		user.Emails = append(user.Emails, emails...)
+
+		if user.Keys == nil {
+			user.Keys = map[model.UserType]string{}
+		}
+		user.Keys[model.GithubUser] = token
+		err = ac.UserController.SaveUser(model.GithubUser, username, user)
+		if err != nil {
+			log.WithError(err).Debug("unable to update kontinuous user")
+			return
+		}
+	}
+
+	// create JWT from user and token
+	jwt, err = createJWT(user, ac.JWTSecret)
+	if err != nil {
+		log.WithError(err).Debug("unable to create JWT for user")
+		return
+	}
 	return
 }
 
@@ -105,7 +107,7 @@ func (ac *AuthController) ValidateHeaderToken(authToken string) (ok bool, err er
 	return
 }
 
-// ValidateJWT checks the JWT for validity
+// ValidateJWT checks the JWT for validity. Empty token will return false and a nil error.
 func (ac *AuthController) ValidateJWT(token string) (ok bool, err error) {
 	if token == "" {
 		return
@@ -115,12 +117,36 @@ func (ac *AuthController) ValidateJWT(token string) (ok bool, err error) {
 
 	secret, err := base64.URLEncoding.DecodeString(ac.JWTSecret)
 	if err != nil {
+		log.WithError(err).Debug("unable to base64 decode the jwt secret")
 		return
 	}
 	jwt, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) { return []byte(secret), nil })
-
+	if err != nil {
+		log.WithError(err).Debug("unable to parse jwt token")
+		return
+	}
 	// other jwt checks?
 	ok = jwt.Valid
 	return
 
+}
+
+func createJWT(user *model.User, jwtSecret string) (jwtToken string, err error) {
+
+	token := jwt.New(jwt.SigningMethodHS256)
+	token.Claims["user_id"] = user.UUID
+
+	decodedSecret, err := base64.URLEncoding.DecodeString(jwtSecret)
+	if err != nil {
+		log.WithError(err).Debug("unable to base64 decode jwt secret")
+		return
+	}
+
+	signedToken, err := token.SignedString(decodedSecret)
+	if err != nil {
+		log.WithError(err).Debug("unable to sign jwt")
+		return
+	}
+
+	return signedToken, nil
 }

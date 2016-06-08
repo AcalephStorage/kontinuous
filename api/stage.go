@@ -18,7 +18,7 @@ import (
 
 // StageResource defines the endpoints for build stages
 type StageResource struct {
-	kv.KVClient
+	kv.Client
 	*mc.MinioClient
 	kube.KubeClient
 }
@@ -83,7 +83,7 @@ func (s *StageResource) run(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	client, err := getScopedClient(pipeline.Login, s.KVClient, req)
+	client, err := getScopedClient(pipeline.Login, s.Client, req)
 	if err != nil {
 		jsonError(res, http.StatusBadRequest, err, "Unable to retrieve remote user")
 		return
@@ -112,7 +112,7 @@ func (s *StageResource) logs(req *restful.Request, res *restful.Response) {
 	if stage.Status == ps.BuildRunning {
 		// where to get ref?
 		ref := build.Commit
-		client, err := getScopedClient(pipeline.Login, s.KVClient, req)
+		client, err := getScopedClient(pipeline.Login, s.Client, req)
 		if err != nil {
 			jsonError(res, http.StatusInternalServerError, err, "unable to create scm client")
 			return
@@ -143,19 +143,19 @@ func (s *StageResource) list(req *restful.Request, res *restful.Response) {
 	owner := req.PathParameter("owner")
 	repo := req.PathParameter("repo")
 	buildNumber := req.PathParameter("buildNumber")
-	pipeline, err := findPipeline(owner, repo, s.KVClient)
+	pipeline, err := findPipeline(owner, repo, s.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find pipeline %s/%s", owner, repo))
 		return
 	}
 
-	build, err := findBuild(buildNumber, pipeline, s.KVClient)
+	build, err := findBuild(buildNumber, pipeline, s.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find build %s for %s/%s", buildNumber, owner, repo))
 		return
 	}
 
-	stages, err := build.GetStages(s.KVClient)
+	stages, err := build.GetStages(s.Client)
 	if err != nil {
 		jsonError(res, http.StatusNotFound, err, fmt.Sprintf("Unable to find stages for %s/%s/builds/%s", owner, repo, buildNumber))
 		return
@@ -198,13 +198,13 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	client, err := getScopedClient(pipeline.Login, s.KVClient, req)
+	client, err := getScopedClient(pipeline.Login, s.Client, req)
 	if err != nil {
 		jsonError(res, http.StatusBadRequest, err, "Unable to retrieve remote user")
 		return
 	}
 
-	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.KVClient, client)
+	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.Client, client)
 	if err != nil {
 		jsonError(res, http.StatusBadRequest, err, "Unable to update stage status")
 		return
@@ -221,17 +221,17 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 
 func (s *StageResource) fetchResources(owner, repo, buildNumber, stageIndex string) (*ps.Pipeline, *ps.Build, *ps.Stage, error) {
 
-	pipeline, err := findPipeline(owner, repo, s.KVClient)
+	pipeline, err := findPipeline(owner, repo, s.Client)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	build, err := findBuild(buildNumber, pipeline, s.KVClient)
+	build, err := findBuild(buildNumber, pipeline, s.Client)
 	if err != nil {
 		return pipeline, nil, nil, err
 	}
 
-	stage, err := findStage(stageIndex, build, s.KVClient)
+	stage, err := findStage(stageIndex, build, s.Client)
 	if err != nil {
 		return pipeline, build, nil, err
 	}
@@ -253,7 +253,7 @@ func (s *StageResource) runStage(pipeline *ps.Pipeline, build *ps.Build, stage *
 	}
 
 	if _, err := ps.CreateJob(definition, jobInfo, scmClient); err != nil {
-		stage.UpdateStatus(stageStatus, pipeline, build, s.KVClient, scmClient)
+		stage.UpdateStatus(stageStatus, pipeline, build, s.Client, scmClient)
 		msg := fmt.Sprintf("Unable to create job for %s/%s/builds/%s/stages/%d", pipeline.Owner, pipeline.Repo, build.Number, stage.Index)
 		return err, msg
 	}

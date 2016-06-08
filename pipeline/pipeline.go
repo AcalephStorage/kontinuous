@@ -85,7 +85,7 @@ type Pipeline struct {
 
 // CreatePipeline persists the pipeline details and setups
 // the webhook and deploy keys(used for builds) to the remote SCM
-func CreatePipeline(p *Pipeline, c scm.Client, k kv.KVClient) (err error) {
+func CreatePipeline(p *Pipeline, c scm.Client, k kv.Client) (err error) {
 	// check if pipeline exists
 	// TODO: add source checking
 	if _, exists := FindPipeline(p.Owner, p.Repo, k); exists {
@@ -148,7 +148,7 @@ func CreatePipeline(p *Pipeline, c scm.Client, k kv.KVClient) (err error) {
 }
 
 // FindPipeline returns a pipeline based on the given owner & repo details
-func FindPipeline(owner, repo string, kvClient kv.KVClient) (*Pipeline, bool) {
+func FindPipeline(owner, repo string, kvClient kv.Client) (*Pipeline, bool) {
 	pipelineDirs, err := kvClient.GetDir(pipelineNamespace)
 	if err != nil || etcd.IsKeyNotFound(err) {
 		return nil, false
@@ -168,7 +168,7 @@ func FindPipeline(owner, repo string, kvClient kv.KVClient) (*Pipeline, bool) {
 }
 
 // FindAllPipelines returns all the pipelines
-func FindAllPipelines(kvClient kv.KVClient) ([]*Pipeline, error) {
+func FindAllPipelines(kvClient kv.Client) ([]*Pipeline, error) {
 	pipelineDirs, err := kvClient.GetDir(pipelineNamespace)
 	if err != nil {
 		if etcd.IsKeyNotFound(err) {
@@ -189,7 +189,7 @@ func FindAllPipelines(kvClient kv.KVClient) ([]*Pipeline, error) {
 	return pipelines, nil
 }
 
-func getPipeline(path string, kvClient kv.KVClient) *Pipeline {
+func getPipeline(path string, kvClient kv.Client) *Pipeline {
 	p := new(Pipeline)
 
 	keys := Key{}
@@ -249,7 +249,7 @@ func (p *Pipeline) GenerateHookSecret(secret string) (string, error) {
 }
 
 // Save persists the pipeline details to `etcd`
-func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
+func (p *Pipeline) Save(kvClient kv.Client) (err error) {
 	p.Name = p.fullName()
 	path := pipelineNamespace + p.Name
 	events := strings.Join(p.Events, ",")
@@ -321,7 +321,7 @@ func (p *Pipeline) Save(kvClient kv.KVClient) (err error) {
 	return nil
 }
 
-func (p *Pipeline) DeletePipeline(kvClient kv.KVClient, mcClient *mc.MinioClient) (err error) {
+func (p *Pipeline) DeletePipeline(kvClient kv.Client, mcClient *mc.MinioClient) (err error) {
 	path := fmt.Sprintf("%s%s", pipelineNamespace, p.fullName())
 	pipelinePrefix := fmt.Sprintf("pipelines/%s", p.ID)
 	bucket := "kontinuous"
@@ -403,7 +403,7 @@ func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
 }
 
 // GetAllBuildsSummary fetches all summarized builds from the store
-func (p *Pipeline) GetAllBuildsSummary(kvClient kv.KVClient) ([]*BuildSummary, error) {
+func (p *Pipeline) GetAllBuildsSummary(kvClient kv.Client) ([]*BuildSummary, error) {
 	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
 	buildDirs, err := kvClient.GetDir(namespace)
 	if err != nil {
@@ -422,7 +422,7 @@ func (p *Pipeline) GetAllBuildsSummary(kvClient kv.KVClient) ([]*BuildSummary, e
 }
 
 // GetBuilds fetches all builds from the store
-func (p *Pipeline) GetBuilds(kvClient kv.KVClient) ([]*Build, error) {
+func (p *Pipeline) GetBuilds(kvClient kv.Client) ([]*Build, error) {
 	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
 	buildDirs, err := kvClient.GetDir(namespace)
 	if err != nil {
@@ -441,7 +441,7 @@ func (p *Pipeline) GetBuilds(kvClient kv.KVClient) ([]*Build, error) {
 }
 
 // GetBuild fetches a specific build by its number
-func (p *Pipeline) GetBuild(num int, kvClient kv.KVClient) (*Build, bool) {
+func (p *Pipeline) GetBuild(num int, kvClient kv.Client) (*Build, bool) {
 	path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
 	_, err := kvClient.GetDir(path)
 	if err != nil || etcd.IsKeyNotFound(err) {
@@ -452,7 +452,7 @@ func (p *Pipeline) GetBuild(num int, kvClient kv.KVClient) (*Build, bool) {
 }
 
 // GetBuildSummary fetches a specific build by its number and returns a summarized details
-func (p *Pipeline) GetBuildSummary(num int, kvClient kv.KVClient) (*BuildSummary, bool) {
+func (p *Pipeline) GetBuildSummary(num int, kvClient kv.Client) (*BuildSummary, bool) {
 	path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
 	_, err := kvClient.GetDir(path)
 	if err != nil || etcd.IsKeyNotFound(err) {
@@ -463,7 +463,7 @@ func (p *Pipeline) GetBuildSummary(num int, kvClient kv.KVClient) (*BuildSummary
 }
 
 // CreateBuild persists build & stage details based on the given definition
-func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.KVClient, scmClient scm.Client) error {
+func (p *Pipeline) CreateBuild(b *Build, stages []*Stage, kvClient kv.Client, scmClient scm.Client) error {
 	b.Created = time.Now().UnixNano()
 	b.CurrentStage = 1
 	b.Status = BuildPending
@@ -532,7 +532,7 @@ func (p *Pipeline) generateKeys() error {
 	return nil
 }
 
-func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.KVClient) {
+func (p *Pipeline) UpdatePipeline(definition *Definition, kvClient kv.Client) {
 
 	pipelineNotifiers := []*Notifier{}
 

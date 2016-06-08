@@ -16,7 +16,7 @@ type User struct {
 }
 
 // FindUser finds a User given a remote ID
-func FindUser(remoteID string, kvClient kv.KVClient) (*User, bool) {
+func FindUser(remoteID string, kvClient kv.Client) (*User, bool) {
 	userDirs, err := kvClient.GetDir(userNamespace)
 	if err != nil || etcd.IsKeyNotFound(err) {
 		return nil, false
@@ -33,7 +33,7 @@ func FindUser(remoteID string, kvClient kv.KVClient) (*User, bool) {
 	return nil, false
 }
 
-func getUser(path string, kvClient kv.KVClient) *User {
+func getUser(path string, kvClient kv.Client) *User {
 	u := new(User)
 	u.Name, _ = kvClient.Get(path + "/name")
 	u.RemoteID, _ = kvClient.Get(path + "/remote-id")
@@ -42,7 +42,7 @@ func getUser(path string, kvClient kv.KVClient) *User {
 }
 
 // Save persists User details to the store
-func (u *User) Save(kvClient kv.KVClient) (err error) {
+func (u *User) Save(kvClient kv.Client) (err error) {
 	path := userNamespace + u.RemoteID // remoteID is unique
 
 	if err = kvClient.Put(path+"/name", u.Name); err != nil {
