@@ -190,6 +190,7 @@ func createDeployContainer(deploymentVars map[string]string, stage *Stage, defin
 	container := createJobContainer("deploy-agent", "quay.io/acaleph/deploy-agent:latest")
 	deployFile := fmt.Sprintf("%v", stage.Params["deploy_file"])
 	deployDir := fmt.Sprintf("%v", stage.Params["deploy_dir"])
+	expose, _ := strconv.ParseBool(fmt.Sprintf("%v", stage.Params["expose"]))
 
 	ref := jobInfo.Commit
 	if ref == "" {
@@ -221,7 +222,13 @@ func createDeployContainer(deploymentVars map[string]string, stage *Stage, defin
 		if err != nil {
 			continue
 		}
-		parsedFiles = append(parsedFiles, base64.StdEncoding.EncodeToString(b.Bytes()))
+
+		toEncode := b.String()
+		if !expose {
+			toEncode = strings.Replace(toEncode, "LoadBalancer", "ClusterIP", -1)
+		}
+
+		parsedFiles = append(parsedFiles, base64.StdEncoding.EncodeToString([]byte(toEncode)))
 	}
 
 	deployFiles := strings.Join(parsedFiles, " ")

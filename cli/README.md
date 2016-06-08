@@ -30,10 +30,11 @@ $ kontinuous-cli get-pipelines
 Deploy Kontinuous to the cluster
 
 ```
-$ kontinuous-cli --namespace {namespace} \
+$ kontinuous-cli deploy --namespace {namespace} \
     --auth-secret {base64 encoded secret} \
     --github-client-id {github client id} \
     --github-client-secret {github client secret}
+    --expose
 ```
 
 
@@ -48,7 +49,7 @@ $ kontinuous-cli deploy remove
 Kontinuous internal registry uses Cluster IP. Should there be any changes on the IP address, please execute the following cli command:
 
 ```
-$ kontinuous-cli --namespace {namespace} \
+$ kontinuous-cli deploy --namespace {namespace} \
     --auth-secret {base64 encoded secret} \
     --github-client-id {github client id} \
     --github-client-secret {github client secret}

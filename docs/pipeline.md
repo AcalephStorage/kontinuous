@@ -197,10 +197,11 @@ Deploys a kubernetes spec in the cluster.
 
 Params:
 
-| Parameter   | Description                                       |
-|-------------|---------------------------------------------------|
-| deploy_file | the kubernetes spec file to deploy                |
-| deploy_dir  | the directory for kubernetes  spec files to deploy|
+| Parameter   | Description                                                          |
+|-------------|----------------------------------------------------------------------|
+| deploy_file | the kubernetes spec file to deploy                                   |
+| deploy_dir  | the directory for kubernetes  spec files to deploy                   |
+| expose      | TRUE/FALSE. flag to expose services. Default is set to false         |
 
 Note: Specification files in yaml format supports template. 
 

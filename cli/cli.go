@@ -147,6 +147,10 @@ func main() {
 					Name:  "github-client-secret",
 					Usage: "Required, Github Client Secret for Github authentication",
 				},
+				cli.BoolFlag{
+					Name:  "expose",
+					Usage: "Optional, Exposes Kontinuous API and UI services.",
+				},
 			},
 
 			Action: deployApp,
@@ -380,6 +384,7 @@ func deployApp(c *cli.Context) {
 	authCode := c.String("auth-secret")
 	clientId := c.String("github-client-id")
 	clientSecret := c.String("github-client-secret")
+	expose := c.Bool("expose")
 
 	missingFields := false
 	if namespace == "" || authCode == "" || clientId == "" || clientSecret == "" {
@@ -387,7 +392,7 @@ func deployApp(c *cli.Context) {
 	}
 
 	if !missingFields {
-		err := DeployKontinuous(namespace, authCode, clientId, clientSecret)
+		err := DeployKontinuous(namespace, authCode, clientId, clientSecret, expose)
 		if err != nil {
 			fmt.Println("Missing fields. Unable to deploy Kontinuous.")
 			fmt.Println(err)

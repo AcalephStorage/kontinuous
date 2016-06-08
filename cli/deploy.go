@@ -362,7 +362,7 @@ type Deploy struct {
 	GHSecret     string
 }
 
-func generateResource(templateStr string, deploy *Deploy) (string, error) {
+func generateResource(templateStr string, deploy *Deploy) ([]byte, error) {
 
 	template := template.New("kontinuous Template")
 	template, _ = template.Parse(templateStr)
@@ -374,11 +374,11 @@ func generateResource(templateStr string, deploy *Deploy) (string, error) {
 		fmt.Println(err.Error())
 	}
 
-	return b.String(), nil
+	return b.Bytes(), nil
 
 }
 
-func saveToFile(path string, data ...string) error {
+func saveToFile(path string, data []byte) error {
 	var _, err = os.Stat(path)
 	var file *os.File
 
@@ -387,20 +387,18 @@ func saveToFile(path string, data ...string) error {
 		defer file.Close()
 	}
 
-	file, err = os.OpenFile(path, os.O_RDWR, 0644)
+	file, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		fmt.Println(err.Error())
 		return err
 	}
 
 	defer file.Close()
-	for _, dataStr := range data {
-		_, err = file.WriteString(dataStr)
+	_, err = file.Write(data)
 
-		if err != nil {
-			fmt.Println(err.Error())
-			return err
-		}
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
 	}
 
 	err = file.Sync()
@@ -412,8 +410,8 @@ func saveToFile(path string, data ...string) error {
 	return nil
 }
 
-func encryptSecret(secret string) string {
-	return base64.StdEncoding.EncodeToString([]byte(secret))
+func encryptSecret(secret []byte) string {
+	return base64.StdEncoding.EncodeToString(secret)
 }
 
 func createKontinuousResouces(path string) error {
@@ -426,7 +424,6 @@ func createKontinuousResouces(path string) error {
 }
 
 func deleteKontinuousResources() error {
-	//remove namespace file
 	fmt.Println("Removing Kontinuous resources ... ")
 	cmd := fmt.Sprintf("rm -f /tmp/deploy/APP_NAMESPACE.yml")
 	_, err := exec.Command("bash", "-c", cmd).Output()
@@ -443,10 +440,33 @@ func deleteKontinuousResources() error {
 	return nil
 }
 
-func fetchKontinuousIP(serviceName, namespace string) (string, error) {
-	var ip string
+func fetchIPAdd(serviceName, namespace string) (string, error) {
+	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.spec.type}}"`, serviceName, namespace)
 
-	// TODO: test out {{range .status.loadBalancer.ingress }}{{.ip}}{{end}}
+	out, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		return "", err
+	}
+
+	serviceType := string(out)
+	ipAddr := ""
+
+	switch serviceType {
+	case "LoadBalancer":
+		ipAddr, err = fetchLoadBalancerIp(serviceName, namespace)
+	case "ClusterIP":
+		ipAddr, err = fetchClusterIP(serviceName, namespace)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return ipAddr, nil
+}
+
+func fetchLoadBalancerIp(serviceName, namespace string) (string, error) {
+	var ip string
 	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.status.loadBalancer.ingress}}"`, serviceName, namespace)
 	for len(ip) == 0 {
 		out, err := exec.Command("bash", "-c", cmd).Output()
@@ -468,7 +488,6 @@ func fetchKontinuousIP(serviceName, namespace string) (string, error) {
 func fetchClusterIP(serviceName, namespace string) (string, error) {
 	var ip string
 
-	// TODO: test out {{range .status.loadBalancer.ingress }}{{.ip}}{{end}}
 	cmd := fmt.Sprintf(`kubectl get svc %s --namespace=%s -o template --template="{{.spec.clusterIP}}"`, serviceName, namespace)
 	for len(ip) == 0 {
 		out, err := exec.Command("bash", "-c", cmd).Output()
@@ -558,13 +577,18 @@ func RemoveResources() error {
 	return nil
 }
 
-func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error {
+func DeployKontinuous(namespace, authcode, clientid, clientsecret string, expose bool) error {
 	fmt.Println("Deploying Kontinuous resources ...")
 	deploy := Deploy{
 		Namespace: namespace,
 		AuthCode:  authcode,
 		GHClient:  clientid,
 		GHSecret:  clientsecret,
+	}
+
+	if !expose {
+		kontinuousSvc = strings.Replace(kontinuousSvc, "LoadBalancer", "ClusterIP", -1)
+		dashboardSvc = strings.Replace(dashboardSvc, "LoadBalancer", "ClusterIP", -1)
 	}
 
 	deployResource(namespaceData, "APP_NAMESPACE", &deploy)
@@ -586,13 +610,9 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	deploy.SecretData = encryptSecret(sData)
 	deployResource(secret, "APP_SECRET", &deploy)
 
-	ip, _ := fetchKontinuousIP("kontinuous", deploy.Namespace)
-	dashboardIp, _ := fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
-	registryIp, _ := fetchClusterIP("registry", deploy.Namespace)
-
-	deploy.DashboardIP = dashboardIp
-	deploy.KontinuousIP = ip
-	deploy.RegistryIP = registryIp
+	deploy.KontinuousIP, _ = fetchIPAdd("kontinuous", deploy.Namespace)
+	deploy.DashboardIP, _ = fetchIPAdd("kontinuous-ui", deploy.Namespace)
+	deploy.RegistryIP, _ = fetchIPAdd("registry", deploy.Namespace)
 
 	err = deployResource(kontinuousDep, "KONTINUOUS_DEPLOYMENT", &deploy)
 
