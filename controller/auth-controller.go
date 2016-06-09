@@ -54,11 +54,20 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 
 	user, err := ac.UserController.GetUser(model.GithubUser, username)
 	if user == nil || err != nil {
+		log.Info("new user login. creating new user...")
 		// create user
+		details := &model.UserDetails{}
+		if ghUser.AvatarURL != nil {
+			details.AvatarURL = *ghUser.AvatarURL
+		}
+		if ghUser.Name != nil {
+			details.FullName = *ghUser.Name
+		}
 		user = &model.User{
-			Name:   username,
-			Emails: emails,
-			UUID:   uuid.NewV4().String(),
+			Name:    username,
+			Emails:  emails,
+			Details: details,
+			UUID:    uuid.NewV4().String(),
 			Keys: map[model.UserType]string{
 				model.GithubUser: token,
 			},
@@ -68,14 +77,18 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 			log.WithError(err).Debug("unable to create kontinuous user")
 			return
 		}
+		log.Info("new user created.")
 	} else {
-		// update user
+		// update user and emails
 		if user.Emails == nil {
 			user.Emails = []string{}
 		}
-		// FIXME: should not just append
-		user.Emails = append(user.Emails, emails...)
-
+		existingEmails := strings.Join(user.Emails, " ")
+		for _, email := range emails {
+			if !strings.Contains(existingEmails, email) {
+				user.Emails = append(user.Emails, email)
+			}
+		}
 		if user.Keys == nil {
 			user.Keys = map[model.UserType]string{}
 		}

@@ -27,8 +27,8 @@ func (a *AuthResource) Register(container *restful.Container) {
 
 	ws.
 		Path("/login").
-		Produces(restful.MIME_JSON) //.
-		// Filter(ncsaCommonLogFormatLogger)
+		Produces(restful.MIME_JSON).
+		Filter(ncsaCommonLogFormatLogger)
 
 	ws.Route(ws.POST("github").To(a.githubLogin).
 		Writes(AuthResponse{}).
@@ -47,11 +47,13 @@ func (a *AuthResource) githubLogin(req *restful.Request, res *restful.Response) 
 	user, jwt, err := a.AuthController.GithubLogin(authCode, state)
 	if err != nil {
 		jsonError(res, http.StatusUnauthorized, err, "unable to login to github")
+		log.Infoln("user unauthorized")
 		return
 	}
 
 	entity := &AuthResponse{JWT: jwt, UserID: user}
 	res.WriteEntity(entity)
+	log.Infoln("login successful")
 }
 
 // AuthFilter is a struct encapsulating an Authorization filter. This allows the filter to use the auth controller
