@@ -206,13 +206,12 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	if stage.Type == "wait" {
+	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.KVClient, client)
+
+	if stage.Type == "wait" || (nextStage != nil && nextStage.Type == "wait") {
 		switch cont {
 		case "yes":
 			status.Status = ps.BuildSuccess
-
-		case "no":
-			status.Status = ps.BuildPending
 
 		default:
 			status.Status = ps.BuildWaiting
@@ -224,8 +223,6 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 			return
 		}
 	}
-
-	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.KVClient, client)
 
 	if err != nil {
 		jsonError(res, http.StatusBadRequest, err, "Unable to update stage status")
