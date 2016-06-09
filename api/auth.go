@@ -35,6 +35,8 @@ func (a *AuthResource) Register(container *restful.Container) {
 		Doc("Generate JWT for API authentication").
 		Operation("authorize"))
 
+	// add login for auth0/oidc, bitbucket, gitlab, etc?
+
 	container.Add(ws)
 }
 

@@ -7,10 +7,9 @@ const (
 )
 
 type User struct {
-	Name    string              `json:"name,required"`
+	User    string              `json:"user,required"`
 	Details *UserDetails        `json:"details,required"`
 	Emails  []string            `json:"emails,required"`
-	UUID    string              `json:"uuid,required"`
 	Keys    map[UserType]string `json:"keys,required"`
 }
 

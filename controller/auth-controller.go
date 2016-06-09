@@ -7,7 +7,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/satori/go.uuid"
 
 	"github.com/AcalephStorage/kontinuous/model"
 	"github.com/AcalephStorage/kontinuous/scm/github"
@@ -64,10 +63,9 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 			details.FullName = *ghUser.Name
 		}
 		user = &model.User{
-			Name:    username,
+			User:    username,
 			Emails:  emails,
 			Details: details,
-			UUID:    uuid.NewV4().String(),
 			Keys: map[model.UserType]string{
 				model.GithubUser: token,
 			},

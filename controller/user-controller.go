@@ -19,7 +19,7 @@ func (uc *UserController) SaveUser(userType model.UserType, username string, use
 		return err
 	}
 	// save user-map
-	if err := uc.UserMapStore.AddMapping(userType, username, user.UUID); err != nil {
+	if err := uc.UserMapStore.AddMapping(userType, username, user.User); err != nil {
 		log.WithError(err).Debug("unable to save user mapping")
 		return err
 	}
@@ -28,13 +28,13 @@ func (uc *UserController) SaveUser(userType model.UserType, username string, use
 
 func (uc *UserController) GetUser(userType model.UserType, username string) (*model.User, error) {
 	// get user uuid from user-map
-	uuid, err := uc.UserMapStore.FindUUID(userType, username)
+	userID, err := uc.UserMapStore.GetUserID(userType, username)
 	if err != nil {
 		log.WithError(err).Debug("unable to find UUID for user")
 		return nil, err
 	}
 
-	user, err := uc.UserStore.GetUser(uuid)
+	user, err := uc.UserStore.GetUser(userID)
 	if err != nil {
 		log.WithError(err).Debug("unable to get user")
 		return nil, err

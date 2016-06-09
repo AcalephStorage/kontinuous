@@ -21,7 +21,7 @@ func (ums *UserMapStore) AddMapping(userType model.UserType, username, uuid stri
 	return nil
 }
 
-func (ums *UserMapStore) FindUUID(userType model.UserType, username string) (uuid string, err error) {
+func (ums *UserMapStore) GetUserID(userType model.UserType, username string) (uuid string, err error) {
 	key := fmt.Sprintf("/kontinuous/user-map/%s/%s", userType, username)
 	uuid, err = ums.KVClient.Get(key)
 	if err != nil {

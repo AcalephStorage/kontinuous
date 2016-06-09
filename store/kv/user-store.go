@@ -15,7 +15,7 @@ type UserStore struct {
 }
 
 func (us *UserStore) SaveUser(user *model.User) error {
-	key := fmt.Sprintf("/kontinuous/users/%s", user.UUID)
+	key := fmt.Sprintf("/kontinuous/users/%s", user.User)
 	data, err := json.Marshal(user)
 	if err != nil {
 		log.WithError(err).Debug("unable to json marshal user data")
@@ -28,8 +28,8 @@ func (us *UserStore) SaveUser(user *model.User) error {
 	return nil
 }
 
-func (us *UserStore) GetUser(uuid string) (*model.User, error) {
-	key := fmt.Sprintf("/kontinuous/users/%s", uuid)
+func (us *UserStore) GetUser(userID string) (*model.User, error) {
+	key := fmt.Sprintf("/kontinuous/users/%s", userID)
 	data, err := us.KVClient.Get(key)
 	if err != nil {
 		log.WithError(err).Debug("unable to get user from etcd")
