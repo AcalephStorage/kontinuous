@@ -206,26 +206,37 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
-	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.KVClient, client)
-
-	if stage.Type == "wait" || (nextStage != nil && nextStage.Type == "wait") {
+	if stage.Type == "wait" {
 		switch cont {
 		case "yes":
 			status.Status = ps.BuildSuccess
-
+			status.Timestamp = time.Now().UnixNano()
 		default:
-			status.Status = ps.BuildWaiting
-			status.Message = "Do you want to continue ?"
-			if len(stage.Params) > 0 && stage.Params["message"].(string) != " " {
-				status.Message = stage.Params["message"].(string)
-			}
-			res.WriteHeaderAndEntity(http.StatusOK, status)
 			return
 		}
 	}
 
+	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.KVClient, client)
+
 	if err != nil {
-		jsonError(res, http.StatusBadRequest, err, "Unable to update stage status")
+		jsonError(res, http.StatusInternalServerError, err, "Unable to update stage status")
+		return
+	}
+
+	if nextStage != nil && nextStage.Type == "wait" {
+		status = new(ps.StatusUpdate)
+		status.Timestamp = time.Now().UnixNano()
+		status.Status = ps.BuildWaiting
+		status.Message = "Do you want to continue? "
+		if len(nextStage.Params) > 0 && nextStage.Params["message"].(string) != " " {
+			status.Message = nextStage.Params["message"].(string)
+		}
+
+		_, err := nextStage.UpdateStatus(status, pipeline, build, s.KVClient, client)
+		if err != nil {
+			jsonError(res, http.StatusInternalServerError, err, "Unable to update stage status")
+		}
+		res.WriteHeaderAndEntity(http.StatusOK, status)
 		return
 	}
 
