@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/AcalephStorage/kontinuous/controller"
 	"github.com/AcalephStorage/kontinuous/kube"
 	ps "github.com/AcalephStorage/kontinuous/pipeline"
 	"github.com/AcalephStorage/kontinuous/store/kv"
@@ -16,9 +17,16 @@ import (
 
 // PipelineResource defines the endpoints of a Pipeline
 type PipelineResource struct {
-	kv.Client
-	*mc.MinioClient
-	kube.KubeClient
+	*AuthFilter
+	*controller.PipelineController
+}
+
+type PipelineItem struct {
+	Owner       string
+	Repository  string
+	User        string
+	Events      []string
+	LatestBuild string
 }
 
 // Register registers the endpoint of this resource to the container
@@ -27,11 +35,10 @@ func (p *PipelineResource) Register(container *restful.Container) {
 
 	ws.
 		Path("/api/v1/pipelines").
-		Consumes(restful.MIME_JSON).
 		Produces(restful.MIME_JSON).
 		Doc("manage pipelines").
-		Produces(restful.MIME_JSON).
-		Filter(ncsaCommonLogFormatLogger)
+		Produces(restful.MIME_JSON)
+		// Filter(ncsaCommonLogFormatLogger)
 
 	ws.Route(ws.GET("").To(p.list).
 		Doc("Get all pipelines").
@@ -52,6 +59,7 @@ func (p *PipelineResource) Register(container *restful.Container) {
 	// Filter(authenticate).
 	// Filter(requireAccessToken))
 
+	// FIXME: I don't think we need this anymore
 	ws.Route(ws.POST("/login").To(p.login).
 		Doc("Save SCM user details").
 		Operation("login").
@@ -61,6 +69,7 @@ func (p *PipelineResource) Register(container *restful.Container) {
 	// Writes(ps.User{}).
 	// Filter(authenticate))
 
+	// FIXME: change this to /{pipeline-name}
 	ws.Route(ws.GET("/{owner}/{repo}").To(p.show).
 		Doc("Show pipeline details").
 		Operation("show").
@@ -83,6 +92,7 @@ func (p *PipelineResource) Register(container *restful.Container) {
 	// Filter(authenticate).
 	// Filter(requireAccessToken))
 
+	// FIXME: i don't we need this???
 	ws.Route(ws.GET("/{owner}/{repo}/definition").To(p.definition).
 		Doc("Get pipeline details of the repository").
 		Operation("definition").
