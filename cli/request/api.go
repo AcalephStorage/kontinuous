@@ -1,12 +1,14 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"encoding/json"
 	"io/ioutil"
@@ -160,6 +162,20 @@ func (c *Config) GetBuilds(client *http.Client, owner, repo string) ([]*BuildDat
 	return list, nil
 }
 
+func (c *Config) GetBuild(client *http.Client, owner, repo string, buildNumber int) (*BuildData, error) {
+	endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d", owner, repo, buildNumber)
+	body, err := c.sendAPIRequest(client, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	buildData := &BuildData{}
+	err = json.Unmarshal(body, &buildData)
+	if err != nil {
+		return nil, err
+	}
+	return buildData, nil
+}
+
 func (c *Config) GetStages(client *http.Client, owner, repo string, buildNumber int) ([]*StageData, error) {
 	if buildNumber == 0 {
 		pipelineName := fmt.Sprintf("%s/%s", owner, repo)
@@ -199,6 +215,14 @@ func (c *Config) CreatePipeline(client *http.Client, pipeline *PipelineData) err
 	if err != nil {
 		return err
 	}
+
+	err = c.CreateBuild(client, pipeline.Owner, pipeline.Repo)
+	if err != nil {
+		fmt.Println("Unable to create initial build")
+		return err
+	}
+
+	fmt.Println("Initializing pipeline build")
 	return nil
 }
 
@@ -214,7 +238,96 @@ func (c *Config) CreateBuild(client *http.Client, owner, repo string) error {
 	if err != nil {
 		return err
 	}
+
+	pipelineName := fmt.Sprintf("%s/%s", owner, repo)
+	pipeline, err := c.GetPipeline(client, pipelineName)
+	if err != nil {
+		return err
+	}
+
+	buildNumber := pipeline.LatestBuild.Number
+	fmt.Print("\nPreparing pipeline build.")
+	err = c.monitorBuildStatus(client, buildNumber, owner, repo, false)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (c *Config) monitorBuildStatus(client *http.Client, buildNumber int, owner, repo string, started bool) error {
+
+	build, err := c.GetBuild(client, owner, repo, buildNumber)
+
+	if err != nil {
+		return err
+	}
+
+	buildStatus := build.Status
+
+	switch buildStatus {
+
+	case "FAIL":
+		fmt.Println("\nBuild failed.")
+		return err
+	case "SUCCESS":
+		fmt.Println("\nBuild successful.")
+		return nil
+
+	case "WAITING":
+		fmt.Print("\nBuild waiting.")
+		stages, err := c.GetStages(client, owner, repo, buildNumber)
+		if err != nil {
+			break
+		}
+
+		message := "\nDo you want to continue? (Y/N) "
+		reader := bufio.NewReader(os.Stdin)
+
+		for stageIdx, stage := range stages {
+			if stage.Status != "WAITING" {
+				continue
+			}
+
+			fmt.Printf("%s", message)
+			text, _ := reader.ReadString('\n')
+			text = strings.ToLower(strings.TrimSpace(text))
+
+			switch text {
+			case "y":
+				fallthrough
+			case "yes":
+				data := fmt.Sprintf(`{"status":"%s","timestamp": %v }`, buildStatus, time.Now().UnixNano())
+				endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d/stages/%d?continue=yes", owner, repo, buildNumber, stageIdx+1)
+				_, err := c.sendAPIRequest(client, "POST", endpoint, []byte(data))
+				if err != nil {
+					return err
+				}
+				fmt.Print("Resuming build.")
+				time.Sleep(2 * time.Second)
+			case "n":
+				fallthrough
+			case "no":
+				fmt.Println("Build stopped.")
+				return nil
+			default:
+				fmt.Println("Invalid input")
+			}
+
+		}
+
+	case "RUNNING":
+		if !started {
+			fmt.Print("\nBuild running.")
+			started = true
+		} else {
+			fmt.Print(".")
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	return c.monitorBuildStatus(client, buildNumber, owner, repo, started)
 }
 
 func (c *Config) DeletePipeline(client *http.Client, pipelineName string) error {
