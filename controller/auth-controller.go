@@ -108,7 +108,7 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 }
 
 // ValidateHeaderToken validates the given token if it is authenticated
-func (ac *AuthController) ValidateHeaderToken(authToken string) (ok bool, err error) {
+func (ac *AuthController) ValidateHeaderToken(authToken string) (ok bool, user string, err error) {
 
 	// bearer token
 	if len(authToken) > 6 && authToken[:7] == "Bearer " {
@@ -119,7 +119,7 @@ func (ac *AuthController) ValidateHeaderToken(authToken string) (ok bool, err er
 }
 
 // ValidateJWT checks the JWT for validity. Empty token will return false and a nil error.
-func (ac *AuthController) ValidateJWT(token string) (ok bool, err error) {
+func (ac *AuthController) ValidateJWT(token string) (ok bool, user string, err error) {
 	if token == "" {
 		return
 	}
@@ -138,6 +138,7 @@ func (ac *AuthController) ValidateJWT(token string) (ok bool, err error) {
 	}
 	// other jwt checks?
 	ok = jwt.Valid
+	user = jwt.Claims["user_id"].(string)
 	return
 
 }
@@ -145,7 +146,7 @@ func (ac *AuthController) ValidateJWT(token string) (ok bool, err error) {
 func createJWT(user *model.User, jwtSecret string) (jwtToken string, err error) {
 
 	token := jwt.New(jwt.SigningMethodHS256)
-	token.Claims["user_id"] = user.UUID
+	token.Claims["user_id"] = user.User
 
 	decodedSecret, err := base64.URLEncoding.DecodeString(jwtSecret)
 	if err != nil {

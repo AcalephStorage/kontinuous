@@ -1,29 +1,25 @@
 package kv
 
 type Client interface {
-	// Put sets the value of a key
-	Put(key, value string) error
+	Create(key string, value []byte) error
 
-	// Get returns the value of the specified key.
-	Get(key string) (string, error)
+	CreateDir(name string) error
 
-	// PutInt accepts an Int value and store it under the specified key.
-	PutInt(key string, value int) error
+	CreateInDir(dir string, value []byte) (key string, err error)
 
-	// GetInt returns the value of the specified key. In Int type
-	GetInt(key string) (int, error)
+	Restore(key string) ([]byte, error)
 
-	// GetDir returns the child nodes of a given directory
-	GetDir(key string) ([]*KVPair, error)
+	Update(key string, value []byte) error
 
-	// PutDir creates a directory.
-	PutDir(key string) error
+	Delete(key string) error
 
-	// PutIntDir creates an integer directory under the given key
-	PutIntDir(key string, value int) error
+	List(dir string) ([][]byte, error)
+}
 
-	// DeleteTree removes a reange of keys under the given directory.
-	DeleteTree(key string) error
+type WatchResponse struct {
+	action string
+	key    string
+	value  []byte
 }
 
 // KVPair defines the retrieved key and value

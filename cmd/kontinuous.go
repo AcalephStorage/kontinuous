@@ -224,7 +224,7 @@ func start(context *cli.Context) error {
 
 	// create resources
 	auth := createAuthResource(kvClient, jwtSecrets, githubSecrets)
-	pipeline := new(api.PipelineResource)
+	pipeline := createPipelineResource(kvClient, auth.AuthFilter)
 	repo := new(api.RepositoryResource)
 
 	// register endpoints
@@ -314,4 +314,22 @@ func createAuthResource(kvClient kv.Client, jwtSecrets JWTSecrets, githubSecrets
 	// resource
 	authResource := &api.AuthResource{AuthController: controller, AuthFilter: authFilter}
 	return authResource
+}
+
+func createPipelineResource(kvClient kv.Client, authFilter *api.AuthFilter) *api.PipelineResource {
+
+	pipelineStore := &kv.PipelineStore{KVClient: kvClient}
+	pipelineMapStore := &kv.PipelineMapStore{KVClient: kvClient}
+
+	controller := &controller.PipelineController{
+		PipelineStore:    pipelineStore,
+		PipelineMapStore: pipelineMapStore,
+	}
+
+	pipelineResource := &api.PipelineResource{
+		AuthFilter:         authFilter,
+		PipelineController: controller,
+	}
+
+	return pipelineResource
 }

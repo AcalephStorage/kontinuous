@@ -66,7 +66,7 @@ type AuthFilter struct {
 func (af *AuthFilter) requireBearerToken(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	authorization := req.HeaderParameter("Authorization")
 
-	valid, err := af.AuthController.ValidateHeaderToken(authorization)
+	valid, user, err := af.AuthController.ValidateHeaderToken(authorization)
 	if err != nil {
 		jsonError(res, http.StatusUnauthorized, err, "error while validating token")
 		return
@@ -76,13 +76,14 @@ func (af *AuthFilter) requireBearerToken(req *restful.Request, res *restful.Resp
 		res.WriteServiceError(http.StatusUnauthorized, serviceError)
 		return
 	}
+	req.SetAttribute("user_id", user)
 	chain.ProcessFilter(req, res)
 }
 
 func (af *AuthFilter) requireIDToken(req *restful.Request, res *restful.Response, chain *restful.FilterChain) {
 	idToken := req.QueryParameter("id_token")
 
-	valid, err := af.AuthController.ValidateJWT(idToken)
+	valid, user, err := af.AuthController.ValidateJWT(idToken)
 	if err != nil {
 		jsonError(res, http.StatusUnauthorized, err, "error while validating token")
 		return
@@ -92,5 +93,6 @@ func (af *AuthFilter) requireIDToken(req *restful.Request, res *restful.Response
 		res.WriteServiceError(http.StatusUnauthorized, serviceError)
 		return
 	}
+	req.SetAttribute("user_id", user)
 	chain.ProcessFilter(req, res)
 }

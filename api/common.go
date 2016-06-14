@@ -130,13 +130,13 @@ func findStage(stageIndex string, build *ps.Build, kvClient kv.Client) (*ps.Stag
 func getScopedClient(userID string, kvClient kv.Client, req *restful.Request) (scm.Client, error) {
 	client := newSCMClient(req)
 
-	user, exists := ps.FindUser(userID, kvClient)
-	if !exists {
-		err := fmt.Errorf("User %s not found, cannot access remote source.", userID)
-		return nil, err
-	}
+	// user, exists := ps.FindUser(userID, kvClient)
+	// if !exists {
+	// 	err := fmt.Errorf("User %s not found, cannot access remote source.", userID)
+	// 	return nil, err
+	// }
 
-	client.SetAccessToken(user.Token)
+	// client.SetAccessToken(user.Token)
 
 	return client, nil
 }

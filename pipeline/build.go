@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	// "strconv"
 	"strings"
 	"text/template"
 
-	etcd "github.com/coreos/etcd/client"
+	// etcd "github.com/coreos/etcd/client"
 
 	"github.com/AcalephStorage/kontinuous/kube"
 	"github.com/AcalephStorage/kontinuous/notif"
@@ -51,121 +51,123 @@ type BuildSummary struct {
 
 func getBuild(path string, kvClient kv.Client) *Build {
 	b := new(Build)
-	b.ID, _ = kvClient.Get(path + "/uuid")
-	b.Status, _ = kvClient.Get(path + "/status")
-	b.Branch, _ = kvClient.Get(path + "/branch")
-	b.Commit, _ = kvClient.Get(path + "/commit")
-	b.Author, _ = kvClient.Get(path + "/author")
-	b.Event, _ = kvClient.Get(path + "/event")
-	b.CloneURL, _ = kvClient.Get(path + "/clone-url")
-	b.Pipeline, _ = kvClient.Get(path + "/pipeline")
-	b.Number, _ = kvClient.GetInt(path + "/number")
-	b.CurrentStage, _ = kvClient.GetInt(path + "/current-stage")
-	created, _ := kvClient.Get(path + "/created")
-	started, _ := kvClient.Get(path + "/started")
-	finished, _ := kvClient.Get(path + "/finished")
-	b.Created, _ = strconv.ParseInt(created, 10, 64)
-	b.Started, _ = strconv.ParseInt(started, 10, 64)
-	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
-	b.GetStages(kvClient)
+	// FIXME:
+	// b.ID, _ = kvClient.Get(path + "/uuid")
+	// b.Status, _ = kvClient.Get(path + "/status")
+	// b.Branch, _ = kvClient.Get(path + "/branch")
+	// b.Commit, _ = kvClient.Get(path + "/commit")
+	// b.Author, _ = kvClient.Get(path + "/author")
+	// b.Event, _ = kvClient.Get(path + "/event")
+	// b.CloneURL, _ = kvClient.Get(path + "/clone-url")
+	// b.Pipeline, _ = kvClient.Get(path + "/pipeline")
+	// b.Number, _ = kvClient.GetInt(path + "/number")
+	// b.CurrentStage, _ = kvClient.GetInt(path + "/current-stage")
+	// created, _ := kvClient.Get(path + "/created")
+	// started, _ := kvClient.Get(path + "/started")
+	// finished, _ := kvClient.Get(path + "/finished")
+	// b.Created, _ = strconv.ParseInt(created, 10, 64)
+	// b.Started, _ = strconv.ParseInt(started, 10, 64)
+	// b.Finished, _ = strconv.ParseInt(finished, 10, 64)
+	// b.GetStages(kvClient)
 
 	return b
 }
 
 func getBuildSummary(path string, kvClient kv.Client) *BuildSummary {
 	b := new(BuildSummary)
-	b.ID, _ = kvClient.Get(path + "/uuid")
-	b.Status, _ = kvClient.Get(path + "/status")
-	b.Branch, _ = kvClient.Get(path + "/branch")
-	b.Commit, _ = kvClient.Get(path + "/commit")
-	b.Author, _ = kvClient.Get(path + "/author")
-	b.Number, _ = kvClient.GetInt(path + "/number")
-	created, _ := kvClient.Get(path + "/created")
-	started, _ := kvClient.Get(path + "/started")
-	finished, _ := kvClient.Get(path + "/finished")
-	b.Created, _ = strconv.ParseInt(created, 10, 64)
-	b.Started, _ = strconv.ParseInt(started, 10, 64)
-	b.Finished, _ = strconv.ParseInt(finished, 10, 64)
+	// FIXME:
+	// b.ID, _ = kvClient.Get(path + "/uuid")
+	// b.Status, _ = kvClient.Get(path + "/status")
+	// b.Branch, _ = kvClient.Get(path + "/branch")
+	// b.Commit, _ = kvClient.Get(path + "/commit")
+	// b.Author, _ = kvClient.Get(path + "/author")
+	// b.Number, _ = kvClient.GetInt(path + "/number")
+	// created, _ := kvClient.Get(path + "/created")
+	// started, _ := kvClient.Get(path + "/started")
+	// finished, _ := kvClient.Get(path + "/finished")
+	// b.Created, _ = strconv.ParseInt(created, 10, 64)
+	// b.Started, _ = strconv.ParseInt(started, 10, 64)
+	// b.Finished, _ = strconv.ParseInt(finished, 10, 64)
 
 	return b
 }
 
 func (b *Build) Delete(pipelinesID string, kvClient kv.Client, mcClient *mc.MinioClient) (err error) {
-	path := fmt.Sprintf("%s%s/builds/%d", pipelineNamespace, b.Pipeline, b.Number)
-	buildsPrefix := fmt.Sprintf("pipelines/%s/builds/%d", pipelinesID, b.Number)
-	bucket := "kontinuous"
+	// path := fmt.Sprintf("%s%s/builds/%d", pipelineNamespace, b.Pipeline, b.Number)
+	// buildsPrefix := fmt.Sprintf("pipelines/%s/builds/%d", pipelinesID, b.Number)
+	// bucket := "kontinuous"
 
-	//remove build info from etcd
-	if err := kvClient.DeleteTree(path); err != nil {
-		return err
-	}
+	// //remove build info from etcd
+	// if err := kvClient.DeleteTree(path); err != nil {
+	// 	return err
+	// }
 
-	//remove build {num} artifacts and logs from minio storage
-	if err := mcClient.DeleteTree(bucket, buildsPrefix); err != nil {
-		return err
-	}
+	// //remove build {num} artifacts and logs from minio storage
+	// if err := mcClient.DeleteTree(bucket, buildsPrefix); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
 // Save persists the build details to `etcd`
 func (b *Build) Save(kvClient kv.Client) (err error) {
-	buildsPrefix := fmt.Sprintf("%s%s/builds", pipelineNamespace, b.Pipeline)
-	path := fmt.Sprintf("%s/%d", buildsPrefix, b.Number)
-	isNew := false
+	// buildsPrefix := fmt.Sprintf("%s%s/builds", pipelineNamespace, b.Pipeline)
+	// path := fmt.Sprintf("%s/%d", buildsPrefix, b.Number)
+	// isNew := false
 
-	_, err = kvClient.GetDir(path)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		isNew = true
-	}
+	// // // _, err = kvClient.GetDir(path)
+	// // // if err != nil || etcd.IsKeyNotFound(err) {
+	// // // 	isNew = true
+	// // // }
 
-	// strings
-	if err := kvClient.Put(path+"/uuid", b.ID); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/status", b.Status); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/branch", b.Branch); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/commit", b.Commit); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/author", b.Author); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/event", b.Event); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/clone-url", b.CloneURL); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/pipeline", b.Pipeline); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	// int as string
-	if err := kvClient.Put(path+"/created", strconv.FormatInt(b.Created, 10)); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/started", strconv.FormatInt(b.Started, 10)); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.Put(path+"/finished", strconv.FormatInt(b.Finished, 10)); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	// integers
-	if err := kvClient.PutInt(path+"/number", b.Number); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err := kvClient.PutInt(path+"/current-stage", b.CurrentStage); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	// save stages
-	if isNew {
-		if err := b.CreateStages(kvClient); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
-	}
+	// // // // strings
+	// // // if err := kvClient.Put(path+"/uuid", b.ID); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/status", b.Status); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/branch", b.Branch); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/commit", b.Commit); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/author", b.Author); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/event", b.Event); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/clone-url", b.CloneURL); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // if err := kvClient.Put(path+"/pipeline", b.Pipeline); err != nil {
+	// // // 	return handleSaveError(path, isNew, err, kvClient)
+	// // // }
+	// // // int as string
+	// // if err := kvClient.Put(path+"/created", strconv.FormatInt(b.Created, 10)); err != nil {
+	// // 	return handleSaveError(path, isNew, err, kvClient)
+	// // }
+	// // if err := kvClient.Put(path+"/started", strconv.FormatInt(b.Started, 10)); err != nil {
+	// // 	return handleSaveError(path, isNew, err, kvClient)
+	// // }
+	// // if err := kvClient.Put(path+"/finished", strconv.FormatInt(b.Finished, 10)); err != nil {
+	// // 	return handleSaveError(path, isNew, err, kvClient)
+	// // }
+	// // // integers
+	// // if err := kvClient.PutInt(path+"/number", b.Number); err != nil {
+	// // 	return handleSaveError(path, isNew, err, kvClient)
+	// // }
+	// // if err := kvClient.PutInt(path+"/current-stage", b.CurrentStage); err != nil {
+	// // 	return handleSaveError(path, isNew, err, kvClient)
+	// // }
+	// // save stages
+	// if isNew {
+	// 	if err := b.CreateStages(kvClient); err != nil {
+	// 		return handleSaveError(path, isNew, err, kvClient)
+	// 	}
+	// }
 
 	return nil
 }
@@ -217,32 +219,34 @@ func parseStageTemplate(stage *Stage, varMaps ...map[string]interface{}) error {
 
 // GetStages fetches all stages of the build from the store
 func (b *Build) GetStages(kvClient kv.Client) ([]*Stage, error) {
-	stagesPrefix := fmt.Sprintf("%s%s/builds/%d/stages", pipelineNamespace, b.Pipeline, b.Number)
-	stageDirs, err := kvClient.GetDir(stagesPrefix)
-	if err != nil {
-		if etcd.IsKeyNotFound(err) {
-			return make([]*Stage, 0), nil
-		}
-		return nil, err
-	}
+	// stagesPrefix := fmt.Sprintf("%s%s/builds/%d/stages", pipelineNamespace, b.Pipeline, b.Number)
+	// stageDirs, err := kvClient.GetDir(stagesPrefix)
+	// if err != nil {
+	// 	if etcd.IsKeyNotFound(err) {
+	// 		return make([]*Stage, 0), nil
+	// 	}
+	// 	return nil, err
+	// }
 
-	b.Stages = make([]*Stage, len(stageDirs))
-	for i, pair := range stageDirs {
-		b.Stages[i] = getStage(pair.Key, kvClient)
-	}
+	// b.Stages = make([]*Stage, len(stageDirs))
+	// for i, pair := range stageDirs {
+	// 	b.Stages[i] = getStage(pair.Key, kvClient)
+	// }
 
-	return b.Stages, nil
+	// return b.Stages, nil
+	return nil, nil
 }
 
 // GetStage fetches a specific stage by its index
 func (b *Build) GetStage(idx int, kvClient kv.Client) (*Stage, bool) {
-	path := fmt.Sprintf("%s%s/builds/%d/stages/%d", pipelineNamespace, b.Pipeline, b.Number, idx)
-	_, err := kvClient.GetDir(path)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		return nil, false
-	}
+	// path := fmt.Sprintf("%s%s/builds/%d/stages/%d", pipelineNamespace, b.Pipeline, b.Number, idx)
+	// _, err := kvClient.GetDir(path)
+	// if err != nil || etcd.IsKeyNotFound(err) {
+	// 	return nil, false
+	// }
 
-	return getStage(path, kvClient), true
+	// return getStage(path, kvClient), true
+	return nil, false
 }
 
 func (b *Build) Notify(kvClient kv.Client) error {

@@ -14,7 +14,7 @@ type UserController struct {
 
 func (uc *UserController) SaveUser(userType model.UserType, username string, user *model.User) error {
 	// save user
-	if err := uc.UserStore.SaveUser(user); err != nil {
+	if err := uc.UserStore.Save(user); err != nil {
 		log.WithError(err).Debug("unable to save user details")
 		return err
 	}

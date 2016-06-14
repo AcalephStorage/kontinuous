@@ -3,7 +3,6 @@ package kv
 import (
 	"errors"
 	"net"
-	"strconv"
 	"time"
 
 	"crypto/tls"
@@ -11,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	log "github.com/Sirupsen/logrus"
 	etcd "github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 )
@@ -36,67 +36,76 @@ func NewEtcdClient(cacert, cert, key string, addresses ...string) (Client, error
 	return &EtcdClient{etcd.NewKeysAPI(etc)}, nil
 }
 
-func (kv *EtcdClient) Put(key, value string) error {
-	_, err := kv.client.Set(context.Background(), key, value, &etcd.SetOptions{})
+func (kv *EtcdClient) Create(key string, value []byte) error {
+	_, err := kv.client.Create(context.Background(), key, string(value))
+	if err != nil {
+		log.WithError(err).Debug("unable to create new etcd entry")
+	}
 	return err
 }
 
-func (kv *EtcdClient) Get(key string) (string, error) {
-	res, err := kv.client.Get(context.Background(), key, &etcd.GetOptions{Quorum: true})
+func (kv *EtcdClient) CreateDir(name string) error {
+	opts := &etcd.SetOptions{Dir: true}
+	_, err := kv.client.Set(context.Background(), name, "", opts)
 	if err != nil {
-		return "", err
+		log.WithError(err).Debug("unable to create new etcd directory")
 	}
-	return res.Node.Value, nil
-}
-
-func (kv *EtcdClient) PutInt(key string, value int) error {
-	return kv.Put(key, strconv.Itoa(value))
-}
-
-func (kv *EtcdClient) GetInt(key string) (int, error) {
-	val, err := kv.Get(key)
-	if err != nil {
-		return -1, err
-	}
-	return strconv.Atoi(val)
-}
-
-func (kv *EtcdClient) GetDir(key string) ([]*KVPair, error) {
-	getOpts := &etcd.GetOptions{
-		Quorum:    true,
-		Recursive: true,
-		Sort:      true,
-	}
-
-	res, err := kv.client.Get(context.Background(), key, getOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	kvpair := []*KVPair{}
-	for _, n := range res.Node.Nodes {
-		kvpair = append(kvpair, &KVPair{
-			Key:       n.Key,
-			Value:     []byte(n.Value),
-			LastIndex: n.ModifiedIndex,
-		})
-	}
-	return kvpair, nil
-}
-
-func (kv *EtcdClient) PutDir(key string) error {
-	_, err := kv.client.Set(context.Background(), key, "", &etcd.SetOptions{Dir: true})
 	return err
 }
 
-func (kv *EtcdClient) PutIntDir(key string, value int) error {
-	dirName := key + "/" + strconv.Itoa(value)
-	return kv.PutDir(dirName)
+func (kv *EtcdClient) CreateInDir(dir string, value []byte) (key string, err error) {
+	res, err := kv.client.CreateInOrder(context.Background(), dir, string(value), nil)
+	if err != nil {
+		log.WithError(err).Debugf("unable to create etcd entry in directory %s", dir)
+		return
+	}
+	key = res.Node.Key
+	return
 }
 
-func (kv *EtcdClient) DeleteTree(key string) error {
-	_, err := kv.client.Delete(context.Background(), key, &etcd.DeleteOptions{Recursive: true})
+func (kv *EtcdClient) Restore(key string) (value []byte, err error) {
+	res, err := kv.client.Get(context.Background(), key, nil)
+	if err != nil {
+		log.WithError(err).Debugf("unable to retrieve etcd value for key %s", key)
+		return
+	}
+	value = []byte(res.Node.Value)
+
+	return
+}
+
+func (kv *EtcdClient) Update(key string, value []byte) error {
+	// opts := &etcd.SetOptions{PrevExist: etcd.PrevExist}
+	_, err := kv.client.Set(context.Background(), key, string(value), nil)
+	if err != nil {
+		log.WithError(err).Debugf("unable to update etcd entry with key %s", key)
+	}
 	return err
+}
+
+func (kv *EtcdClient) Delete(key string) error {
+	opts := &etcd.DeleteOptions{Recursive: true}
+	_, err := kv.client.Delete(context.Background(), key, opts)
+	if err != nil {
+		log.WithError(err).Debugf("unable to delete etcd entry with key %s", key)
+	}
+
+	return err
+}
+
+func (kv *EtcdClient) List(dir string) (values [][]byte, err error) {
+	opts := &etcd.GetOptions{Recursive: true, Sort: true}
+	res, err := kv.client.Get(context.Background(), dir, opts)
+	if err != nil {
+		log.WithError(err).Debugf("unable to list entries of directory %s", dir)
+		return
+	}
+	nodes := res.Node.Nodes
+	values = make([][]byte, len(nodes))
+	for i, node := range nodes {
+		values[i] = []byte(node.Value)
+	}
+	return
 }
 
 func createKvConfig(cacert, cert, key string, addresses []string) (*etcd.Config, error) {

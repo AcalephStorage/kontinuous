@@ -2,12 +2,12 @@ package pipeline
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
+	// "strconv"
+	// "strings"
 
-	"encoding/json"
+	// "encoding/json"
 
-	etcd "github.com/coreos/etcd/client"
+	// etcd "github.com/coreos/etcd/client"
 
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
@@ -59,99 +59,99 @@ type Stage struct {
 
 func getStage(path string, kvClient kv.Client) *Stage {
 	s := new(Stage)
-	started, _ := kvClient.Get(path + "/started")
-	finished, _ := kvClient.Get(path + "/finished")
-	params, _ := kvClient.Get(path + "/params")
-	labels, _ := kvClient.Get(path + "/labels")
-	secrets, _ := kvClient.Get(path + "/secrets")
-	vars, _ := kvClient.Get(path + "/vars")
+	// started, _ := kvClient.Get(path + "/started")
+	// finished, _ := kvClient.Get(path + "/finished")
+	// params, _ := kvClient.Get(path + "/params")
+	// labels, _ := kvClient.Get(path + "/labels")
+	// secrets, _ := kvClient.Get(path + "/secrets")
+	// vars, _ := kvClient.Get(path + "/vars")
 
-	s.ID, _ = kvClient.Get(path + "/uuid")
-	s.Index, _ = kvClient.GetInt(path + "/index")
-	s.Name, _ = kvClient.Get(path + "/name")
-	s.Type, _ = kvClient.Get(path + "/type")
-	s.DockerImage, _ = kvClient.Get(path + "/docker-image")
-	s.PodName, _ = kvClient.Get(path + "/pod-name")
-	s.JobName, _ = kvClient.Get(path + "/job-name")
-	s.Namespace, _ = kvClient.Get(path + "/namespace")
-	s.Status, _ = kvClient.Get(path + "/status")
-	s.Message, _ = kvClient.Get(path + "/message")
-	s.Started, _ = strconv.ParseInt(started, 10, 64)
-	s.Finished, _ = strconv.ParseInt(finished, 10, 64)
-	s.Secrets = strings.Split(secrets, ",")
+	// s.ID, _ = kvClient.Get(path + "/uuid")
+	// s.Index, _ = kvClient.GetInt(path + "/index")
+	// s.Name, _ = kvClient.Get(path + "/name")
+	// s.Type, _ = kvClient.Get(path + "/type")
+	// s.DockerImage, _ = kvClient.Get(path + "/docker-image")
+	// s.PodName, _ = kvClient.Get(path + "/pod-name")
+	// s.JobName, _ = kvClient.Get(path + "/job-name")
+	// s.Namespace, _ = kvClient.Get(path + "/namespace")
+	// s.Status, _ = kvClient.Get(path + "/status")
+	// s.Message, _ = kvClient.Get(path + "/message")
+	// s.Started, _ = strconv.ParseInt(started, 10, 64)
+	// s.Finished, _ = strconv.ParseInt(finished, 10, 64)
+	// s.Secrets = strings.Split(secrets, ",")
 
-	json.Unmarshal([]byte(params), &s.Params)
-	json.Unmarshal([]byte(labels), &s.Labels)
-	json.Unmarshal([]byte(vars), &s.Vars)
+	// json.Unmarshal([]byte(params), &s.Params)
+	// json.Unmarshal([]byte(labels), &s.Labels)
+	// json.Unmarshal([]byte(vars), &s.Vars)
 
 	return s
 }
 
 // Save persists the stage details to `etcd`
 func (s *Stage) Save(namespace string, kvClient kv.Client) (err error) {
-	stagePrefix := namespace + "/" + strconv.Itoa(s.Index)
-	isNew := false
+	// stagePrefix := namespace + "/" + strconv.Itoa(s.Index)
+	// isNew := false
 
-	_, err = kvClient.GetDir(stagePrefix)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		isNew = true
-	}
+	// _, err = kvClient.GetDir(stagePrefix)
+	// if err != nil || etcd.IsKeyNotFound(err) {
+	// 	isNew = true
+	// }
 
-	if err = kvClient.Put(stagePrefix+"/uuid", s.ID); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(stagePrefix+"/name", s.Name); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(stagePrefix+"/type", s.Type); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(stagePrefix+"/status", s.Status); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(stagePrefix+"/namespace", s.Namespace); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	params, _ := json.Marshal(s.Params)
-	if err = kvClient.Put(stagePrefix+"/params", string(params)); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	labels, _ := json.Marshal(s.Labels)
-	if err = kvClient.Put(stagePrefix+"/labels", string(labels)); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	secrets := strings.Join(s.Secrets, ",")
-	if err = kvClient.Put(stagePrefix+"/secrets", secrets); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	vars, _ := json.Marshal(s.Vars)
-	if err = kvClient.Put(stagePrefix+"/vars", string(vars)); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
+	// if err = kvClient.Put(stagePrefix+"/uuid", s.ID); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(stagePrefix+"/name", s.Name); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(stagePrefix+"/type", s.Type); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(stagePrefix+"/status", s.Status); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(stagePrefix+"/namespace", s.Namespace); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// params, _ := json.Marshal(s.Params)
+	// if err = kvClient.Put(stagePrefix+"/params", string(params)); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// labels, _ := json.Marshal(s.Labels)
+	// if err = kvClient.Put(stagePrefix+"/labels", string(labels)); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// secrets := strings.Join(s.Secrets, ",")
+	// if err = kvClient.Put(stagePrefix+"/secrets", secrets); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// vars, _ := json.Marshal(s.Vars)
+	// if err = kvClient.Put(stagePrefix+"/vars", string(vars)); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
 
-	if err = kvClient.PutInt(stagePrefix+"/index", s.Index); err != nil {
-		return handleSaveError(stagePrefix, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(stagePrefix+"/pod-name", s.PodName); err != nil {
-		kvClient.DeleteTree(namespace)
-		return err
-	}
-	if err = kvClient.Put(stagePrefix+"/job-name", s.JobName); err != nil {
-		kvClient.DeleteTree(namespace)
-		return err
-	}
-	if err = kvClient.Put(stagePrefix+"/docker-image", s.DockerImage); err != nil {
-		kvClient.DeleteTree(namespace)
-		return err
-	}
-	if err = kvClient.Put(stagePrefix+"/started", strconv.FormatInt(s.Started, 10)); err != nil {
-		kvClient.DeleteTree(namespace)
-		return err
-	}
-	if err = kvClient.Put(stagePrefix+"/finished", strconv.FormatInt(s.Finished, 10)); err != nil {
-		kvClient.DeleteTree(namespace)
-		return err
-	}
+	// if err = kvClient.PutInt(stagePrefix+"/index", s.Index); err != nil {
+	// 	return handleSaveError(stagePrefix, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(stagePrefix+"/pod-name", s.PodName); err != nil {
+	// 	kvClient.DeleteTree(namespace)
+	// 	return err
+	// }
+	// if err = kvClient.Put(stagePrefix+"/job-name", s.JobName); err != nil {
+	// 	kvClient.DeleteTree(namespace)
+	// 	return err
+	// }
+	// if err = kvClient.Put(stagePrefix+"/docker-image", s.DockerImage); err != nil {
+	// 	kvClient.DeleteTree(namespace)
+	// 	return err
+	// }
+	// if err = kvClient.Put(stagePrefix+"/started", strconv.FormatInt(s.Started, 10)); err != nil {
+	// 	kvClient.DeleteTree(namespace)
+	// 	return err
+	// }
+	// if err = kvClient.Put(stagePrefix+"/finished", strconv.FormatInt(s.Finished, 10)); err != nil {
+	// 	kvClient.DeleteTree(namespace)
+	// 	return err
+	// }
 
 	return nil
 }

@@ -11,10 +11,10 @@ import (
 	"encoding/base64"
 
 	"github.com/choodur/drone/shared/crypto"
-	etcd "github.com/coreos/etcd/client"
+	// etcd "github.com/coreos/etcd/client"
 	"github.com/dgrijalva/jwt-go"
 
-	"encoding/json"
+	// "encoding/json"
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/AcalephStorage/kontinuous/store/kv"
 	"github.com/AcalephStorage/kontinuous/store/mc"
@@ -149,84 +149,86 @@ func CreatePipeline(p *Pipeline, c scm.Client, k kv.Client) (err error) {
 
 // FindPipeline returns a pipeline based on the given owner & repo details
 func FindPipeline(owner, repo string, kvClient kv.Client) (*Pipeline, bool) {
-	pipelineDirs, err := kvClient.GetDir(pipelineNamespace)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		return nil, false
-	}
+	// pipelineDirs, err := kvClient.GetDir(pipelineNamespace)
+	// if err != nil || etcd.IsKeyNotFound(err) {
+	// 	return nil, false
+	// }
 
-	for _, pair := range pipelineDirs {
-		namespace := strings.TrimPrefix(pair.Key, pipelineNamespace)
-		id := strings.Split(namespace, ":")
-		if id[0] == owner && id[1] == repo {
-			path := pipelineNamespace + namespace
-			pipeline := getPipeline(path, kvClient)
-			return pipeline, true
-		}
-	}
+	// for _, pair := range pipelineDirs {
+	// 	namespace := strings.TrimPrefix(pair.Key, pipelineNamespace)
+	// 	id := strings.Split(namespace, ":")
+	// 	if id[0] == owner && id[1] == repo {
+	// 		path := pipelineNamespace + namespace
+	// 		pipeline := getPipeline(path, kvClient)
+	// 		return pipeline, true
+	// 	}
+	// }
 
+	// return nil, false
 	return nil, false
 }
 
 // FindAllPipelines returns all the pipelines
 func FindAllPipelines(kvClient kv.Client) ([]*Pipeline, error) {
-	pipelineDirs, err := kvClient.GetDir(pipelineNamespace)
-	if err != nil {
-		if etcd.IsKeyNotFound(err) {
-			return make([]*Pipeline, 0), nil
-		}
-		return nil, err
-	}
+	// pipelineDirs, err := kvClient.GetDir(pipelineNamespace)
+	// if err != nil {
+	// 	if etcd.IsKeyNotFound(err) {
+	// 		return make([]*Pipeline, 0), nil
+	// 	}
+	// 	return nil, err
+	// }
 
-	pipelines := []*Pipeline{}
-	for _, pair := range pipelineDirs {
-		// TODO handle errors when getting data from etcd
-		namespace := strings.TrimPrefix(pair.Key, pipelineNamespace)
-		path := pipelineNamespace + namespace
-		pipeline := getPipeline(path, kvClient)
-		pipelines = append(pipelines, pipeline)
-	}
+	// pipelines := []*Pipeline{}
+	// for _, pair := range pipelineDirs {
+	// 	// TODO handle errors when getting data from etcd
+	// 	namespace := strings.TrimPrefix(pair.Key, pipelineNamespace)
+	// 	path := pipelineNamespace + namespace
+	// 	pipeline := getPipeline(path, kvClient)
+	// 	pipelines = append(pipelines, pipeline)
+	// }
 
-	return pipelines, nil
+	// return pipelines, nil
+	return nil, nil
 }
 
 func getPipeline(path string, kvClient kv.Client) *Pipeline {
 	p := new(Pipeline)
 
-	keys := Key{}
-	keys.Public, _ = kvClient.Get(path + "/keys/public")
-	keys.Private, _ = kvClient.Get(path + "/keys/private")
-	events, _ := kvClient.Get(path + "/events")
-	secrets, _ := kvClient.Get(path + "/secrets")
-	vars, _ := kvClient.Get(path + "/vars")
+	// keys := Key{}
+	// keys.Public, _ = kvClient.Get(path + "/keys/public")
+	// keys.Private, _ = kvClient.Get(path + "/keys/private")
+	// events, _ := kvClient.Get(path + "/events")
+	// secrets, _ := kvClient.Get(path + "/secrets")
+	// vars, _ := kvClient.Get(path + "/vars")
 
-	p.ID, _ = kvClient.Get(path + "/uuid")
-	p.Repo, _ = kvClient.Get(path + "/repo")
-	p.Owner, _ = kvClient.Get(path + "/owner")
-	p.Login, _ = kvClient.Get(path + "/login")
-	p.Source, _ = kvClient.Get(path + "/source")
-	p.LatestBuildNumber, _ = kvClient.GetInt(path + "/latest-build")
-	p.LatestBuild, _ = p.GetBuildSummary(p.LatestBuildNumber, kvClient)
-	p.Events = strings.Split(events, ",")
-	p.Keys = keys
-	p.Name = p.fullName()
-	p.Secrets = strings.Split(secrets, ",")
-	json.Unmarshal([]byte(vars), &p.Vars)
+	// p.ID, _ = kvClient.Get(path + "/uuid")
+	// p.Repo, _ = kvClient.Get(path + "/repo")
+	// p.Owner, _ = kvClient.Get(path + "/owner")
+	// p.Login, _ = kvClient.Get(path + "/login")
+	// p.Source, _ = kvClient.Get(path + "/source")
+	// p.LatestBuildNumber, _ = kvClient.GetInt(path + "/latest-build")
+	// p.LatestBuild, _ = p.GetBuildSummary(p.LatestBuildNumber, kvClient)
+	// p.Events = strings.Split(events, ",")
+	// p.Keys = keys
+	// p.Name = p.fullName()
+	// p.Secrets = strings.Split(secrets, ",")
+	// json.Unmarshal([]byte(vars), &p.Vars)
 
-	pipelineNotifiers := []*Notifier{}
-	notifiers, _ := kvClient.Get(path + "/notif/type")
+	// pipelineNotifiers := []*Notifier{}
+	// notifiers, _ := kvClient.Get(path + "/notif/type")
 
-	if len(notifiers) > 0 {
-		notifierType := strings.Split(notifiers, " ")
-		notifnamespace, _ := kvClient.Get(path + "/notif/namespace")
+	// if len(notifiers) > 0 {
+	// 	notifierType := strings.Split(notifiers, " ")
+	// 	notifnamespace, _ := kvClient.Get(path + "/notif/namespace")
 
-		for _, notifier := range notifierType {
-			pipelineNotifier := &Notifier{}
-			pipelineNotifier.Type = notifier
-			pipelineNotifier.Namespace = notifnamespace
-			pipelineNotifiers = append(pipelineNotifiers, pipelineNotifier)
-		}
-		p.Notifiers = pipelineNotifiers
-	}
+	// 	for _, notifier := range notifierType {
+	// 		pipelineNotifier := &Notifier{}
+	// 		pipelineNotifier.Type = notifier
+	// 		pipelineNotifier.Namespace = notifnamespace
+	// 		pipelineNotifiers = append(pipelineNotifiers, pipelineNotifier)
+	// 	}
+	// 	p.Notifiers = pipelineNotifiers
+	// }
 	return p
 }
 
@@ -250,89 +252,89 @@ func (p *Pipeline) GenerateHookSecret(secret string) (string, error) {
 
 // Save persists the pipeline details to `etcd`
 func (p *Pipeline) Save(kvClient kv.Client) (err error) {
-	p.Name = p.fullName()
-	path := pipelineNamespace + p.Name
-	events := strings.Join(p.Events, ",")
-	pipelineSecrets := strings.Join(p.Secrets, ",")
-	isNew := false
+	// p.Name = p.fullName()
+	// path := pipelineNamespace + p.Name
+	// events := strings.Join(p.Events, ",")
+	// pipelineSecrets := strings.Join(p.Secrets, ",")
+	// isNew := false
 
-	_, err = kvClient.GetDir(path)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		isNew = true
-	}
+	// _, err = kvClient.GetDir(path)
+	// if err != nil || etcd.IsKeyNotFound(err) {
+	// 	isNew = true
+	// }
 
-	if err = kvClient.Put(path+"/uuid", p.ID); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/repo", p.Repo); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/owner", p.Owner); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/events", events); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/keys/public", p.Keys.Public); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/keys/private", p.Keys.Private); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/login", p.Login); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
-	if err = kvClient.Put(path+"/source", p.Source); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
+	// if err = kvClient.Put(path+"/uuid", p.ID); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/repo", p.Repo); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/owner", p.Owner); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/events", events); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/keys/public", p.Keys.Public); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/keys/private", p.Keys.Private); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/login", p.Login); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
+	// if err = kvClient.Put(path+"/source", p.Source); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
 
-	vars, _ := json.Marshal(p.Vars)
-	if err = kvClient.Put(path+"/vars", string(vars)); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
+	// vars, _ := json.Marshal(p.Vars)
+	// if err = kvClient.Put(path+"/vars", string(vars)); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
 
-	if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
-		return handleSaveError(path, isNew, err, kvClient)
-	}
+	// if err = kvClient.Put(path+"/secrets", pipelineSecrets); err != nil {
+	// 	return handleSaveError(path, isNew, err, kvClient)
+	// }
 
-	if !isNew {
-		if err = kvClient.PutInt(path+"/latest-build", p.LatestBuildNumber); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
-	}
+	// if !isNew {
+	// 	if err = kvClient.PutInt(path+"/latest-build", p.LatestBuildNumber); err != nil {
+	// 		return handleSaveError(path, isNew, err, kvClient)
+	// 	}
+	// }
 
-	if p.Notifiers != nil && len(p.Notifiers) > 0 {
+	// if p.Notifiers != nil && len(p.Notifiers) > 0 {
 
-		types := make([]string, len(p.Notifiers))
-		for _, notifier := range p.Notifiers {
-			types = append(types, notifier.Type)
-		}
+	// 	types := make([]string, len(p.Notifiers))
+	// 	for _, notifier := range p.Notifiers {
+	// 		types = append(types, notifier.Type)
+	// 	}
 
-		notifValue := strings.Join(types, " ")
-		if err = kvClient.Put(path+"/notif/type", notifValue); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
+	// 	notifValue := strings.Join(types, " ")
+	// 	if err = kvClient.Put(path+"/notif/type", notifValue); err != nil {
+	// 		return handleSaveError(path, isNew, err, kvClient)
+	// 	}
 
-		if err = kvClient.Put(path+"/notif/namespace", p.Notifiers[0].Namespace); err != nil {
-			return handleSaveError(path, isNew, err, kvClient)
-		}
-	}
+	// 	if err = kvClient.Put(path+"/notif/namespace", p.Notifiers[0].Namespace); err != nil {
+	// 		return handleSaveError(path, isNew, err, kvClient)
+	// 	}
+	// }
 
 	return nil
 }
 
 func (p *Pipeline) DeletePipeline(kvClient kv.Client, mcClient *mc.MinioClient) (err error) {
-	path := fmt.Sprintf("%s%s", pipelineNamespace, p.fullName())
-	pipelinePrefix := fmt.Sprintf("pipelines/%s", p.ID)
-	bucket := "kontinuous"
+	// path := fmt.Sprintf("%s%s", pipelineNamespace, p.fullName())
+	// pipelinePrefix := fmt.Sprintf("pipelines/%s", p.ID)
+	// bucket := "kontinuous"
 
-	if err := kvClient.DeleteTree(path); err != nil {
-		return err
-	}
+	// if err := kvClient.DeleteTree(path); err != nil {
+	// 	return err
+	// }
 
-	if err := mcClient.DeleteTree(bucket, pipelinePrefix); err != nil {
-		return err
-	}
+	// if err := mcClient.DeleteTree(bucket, pipelinePrefix); err != nil {
+	// 	return err
+	// }
 	return nil
 
 }
@@ -404,62 +406,66 @@ func (p *Pipeline) Definition(ref string, c scm.Client) (*Definition, error) {
 
 // GetAllBuildsSummary fetches all summarized builds from the store
 func (p *Pipeline) GetAllBuildsSummary(kvClient kv.Client) ([]*BuildSummary, error) {
-	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
-	buildDirs, err := kvClient.GetDir(namespace)
-	if err != nil {
-		if etcd.IsKeyNotFound(err) {
-			return make([]*BuildSummary, 0), nil
-		}
-		return nil, err
-	}
+	// namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
+	// buildDirs, err := kvClient.GetDir(namespace)
+	// if err != nil {
+	// 	if etcd.IsKeyNotFound(err) {
+	// 		return make([]*BuildSummary, 0), nil
+	// 	}
+	// 	return nil, err
+	// }
 
-	builds := make([]*BuildSummary, len(buildDirs))
-	for i, pair := range buildDirs {
-		builds[i] = getBuildSummary(pair.Key, kvClient)
-	}
+	// builds := make([]*BuildSummary, len(buildDirs))
+	// for i, pair := range buildDirs {
+	// 	builds[i] = getBuildSummary(pair.Key, kvClient)
+	// }
 
-	return builds, nil
+	// return builds, nil
+	return nil, nil
 }
 
 // GetBuilds fetches all builds from the store
 func (p *Pipeline) GetBuilds(kvClient kv.Client) ([]*Build, error) {
-	namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
-	buildDirs, err := kvClient.GetDir(namespace)
-	if err != nil {
-		if etcd.IsKeyNotFound(err) {
-			return make([]*Build, 0), nil
-		}
-		return nil, err
-	}
+	// namespace := fmt.Sprintf("%s%s/builds", pipelineNamespace, p.fullName())
+	// buildDirs, err := kvClient.GetDir(namespace)
+	// if err != nil {
+	// 	if etcd.IsKeyNotFound(err) {
+	// 		return make([]*Build, 0), nil
+	// 	}
+	// 	return nil, err
+	// }
 
-	p.Builds = make([]*Build, len(buildDirs))
-	for i, pair := range buildDirs {
-		p.Builds[i] = getBuild(pair.Key, kvClient)
-	}
+	// p.Builds = make([]*Build, len(buildDirs))
+	// for i, pair := range buildDirs {
+	// 	p.Builds[i] = getBuild(pair.Key, kvClient)
+	// }
 
-	return p.Builds, nil
+	// return p.Builds, nil
+	return nil, nil
 }
 
 // GetBuild fetches a specific build by its number
 func (p *Pipeline) GetBuild(num int, kvClient kv.Client) (*Build, bool) {
-	path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
-	_, err := kvClient.GetDir(path)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		return nil, false
-	}
+	// path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
+	// _, err := kvClient.GetDir(path)
+	// if err != nil || etcd.IsKeyNotFound(err) {
+	// 	return nil, false
+	// }
 
-	return getBuild(path, kvClient), true
+	// return getBuild(path, kvClient), true
+	return nil, false
 }
 
 // GetBuildSummary fetches a specific build by its number and returns a summarized details
 func (p *Pipeline) GetBuildSummary(num int, kvClient kv.Client) (*BuildSummary, bool) {
-	path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
-	_, err := kvClient.GetDir(path)
-	if err != nil || etcd.IsKeyNotFound(err) {
-		return nil, false
-	}
+	// path := fmt.Sprintf("%s%s:%s/builds/%d", pipelineNamespace, p.Owner, p.Repo, num)
+	// _, err := kvClient.GetDir(path)
+	// if err != nil || etcd.IsKeyNotFound(err) {
+	// 	return nil, false
+	// }
 
-	return getBuildSummary(path, kvClient), true
+	// return getBuildSummary(path, kvClient), true
+	return nil, false
 }
 
 // CreateBuild persists build & stage details based on the given definition
