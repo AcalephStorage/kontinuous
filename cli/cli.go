@@ -190,6 +190,25 @@ func main() {
 				},
 			},
 		},
+		{
+			Name:      "resume",
+			Usage:     "resume pipeline builds",
+			ArgsUsage: "[pipeline-name]",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "build, b",
+					Usage: "Required, Pipeline build number you want to resume",
+				},
+			},
+			Before: func(c *cli.Context) error {
+				p := strings.TrimSpace(c.Args().First())
+				if len(p) > 0 {
+					return requireNameArg(c)
+				}
+				return nil
+			},
+			Action: resumeBuild,
+		},
 	}
 	app.Run(os.Args)
 }
@@ -491,4 +510,19 @@ func removeDeployedApp(c *cli.Context) {
 	}
 
 	fmt.Println("Success! Kontinuous resources has been removed from the cluster. ")
+}
+
+func resumeBuild(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+	owner, repo, _ := parseNameArg(c.Args().First())
+	buildNo := c.Int("build")
+	err = config.ResumeBuild(http.DefaultClient, owner, repo, buildNo)
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

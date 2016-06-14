@@ -179,7 +179,7 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kvClient kv
 		s.Finished = u.Timestamp
 		scmStatus = scm.StateFailure
 	case BuildWaiting:
-		b.Status = BuildWaiting
+		b.Status = BuildSuccess
 		s.Started = u.Timestamp
 		scmStatus = scm.StatePending
 	}
@@ -224,6 +224,14 @@ func (s *Stage) UpdateStatus(u *StatusUpdate, p *Pipeline, b *Build, kvClient kv
 
 		if nextStage != nil {
 			return nextStage, nil
+		}
+	}
+
+	if s.Status == BuildWaiting && b.Status == BuildSuccess {
+		b.Finished = u.Timestamp
+		b.CurrentStage = s.Index
+		if err := b.Save(kvClient); err != nil {
+			return nil, err
 		}
 	}
 

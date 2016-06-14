@@ -47,14 +47,15 @@ type (
 	}
 
 	BuildData struct {
-		Number   int          `json:"number"`
-		Status   string       `json:"status"`
-		Created  int64        `json:"created"`
-		Finished int64        `json:"finished"`
-		Event    string       `json:"event"`
-		Author   string       `json:"author"`
-		Commit   string       `json:"commit"`
-		Stages   []*StageData `json:"stages"`
+		Number       int          `json:"number"`
+		Status       string       `json:"status"`
+		Created      int64        `json:"created"`
+		Finished     int64        `json:"finished"`
+		Event        string       `json:"event"`
+		Author       string       `json:"author"`
+		Commit       string       `json:"commit"`
+		CurrentStage int          `json:current_stage`
+		Stages       []*StageData `json:"stages"`
 	}
 
 	StageData struct {
@@ -259,7 +260,8 @@ func (c *Config) CreateBuild(client *http.Client, owner, repo string) error {
 func (c *Config) monitorBuildStatus(client *http.Client, buildNumber int, owner, repo string, started bool) error {
 
 	build, err := c.GetBuild(client, owner, repo, buildNumber)
-
+	stages, err := c.GetStages(client, owner, repo, buildNumber)
+	currentStage := build.CurrentStage
 	if err != nil {
 		return err
 	}
@@ -272,49 +274,43 @@ func (c *Config) monitorBuildStatus(client *http.Client, buildNumber int, owner,
 		fmt.Println("\nBuild failed.")
 		return err
 	case "SUCCESS":
-		fmt.Println("\nBuild successful.")
-		return nil
-
-	case "WAITING":
-		fmt.Print("\nBuild waiting.")
-		stages, err := c.GetStages(client, owner, repo, buildNumber)
-		if err != nil {
-			break
+		if currentStage == len(stages) {
+			fmt.Println("\nBuild successful.")
+			return nil
 		}
 
+		stage := stages[currentStage-1]
+
+		if stage.Status != "WAITING" {
+			break
+		}
+		//check current Stage status if waiting
 		message := "\nDo you want to continue? (Y/N) "
 		reader := bufio.NewReader(os.Stdin)
 
-		for stageIdx, stage := range stages {
-			if stage.Status != "WAITING" {
-				continue
+		fmt.Printf("%s", message)
+		text, _ := reader.ReadString('\n')
+		text = strings.ToLower(strings.TrimSpace(text))
+
+		switch text {
+		case "y":
+			fallthrough
+		case "yes":
+			data := fmt.Sprintf(`{"status":"%s","timestamp": %v }`, buildStatus, time.Now().UnixNano())
+			endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d/stages/%d?continue=yes", owner, repo, buildNumber, currentStage)
+			_, err := c.sendAPIRequest(client, "POST", endpoint, []byte(data))
+			if err != nil {
+				return err
 			}
-
-			fmt.Printf("%s", message)
-			text, _ := reader.ReadString('\n')
-			text = strings.ToLower(strings.TrimSpace(text))
-
-			switch text {
-			case "y":
-				fallthrough
-			case "yes":
-				data := fmt.Sprintf(`{"status":"%s","timestamp": %v }`, buildStatus, time.Now().UnixNano())
-				endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d/stages/%d?continue=yes", owner, repo, buildNumber, stageIdx+1)
-				_, err := c.sendAPIRequest(client, "POST", endpoint, []byte(data))
-				if err != nil {
-					return err
-				}
-				fmt.Print("Resuming build.")
-				time.Sleep(2 * time.Second)
-			case "n":
-				fallthrough
-			case "no":
-				fmt.Println("Build stopped.")
-				return nil
-			default:
-				fmt.Println("Invalid input")
-			}
-
+			fmt.Print("Resuming build.")
+			time.Sleep(2 * time.Second)
+		case "n":
+			fallthrough
+		case "no":
+			fmt.Println("Build stopped.")
+			return nil
+		default:
+			fmt.Println("Invalid input")
 		}
 
 	case "RUNNING":
@@ -345,6 +341,35 @@ func (c *Config) DeleteBuild(client *http.Client, pipelineName string, buildNumb
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (c *Config) ResumeBuild(client *http.Client, owner, repo string, buildNumber int) error {
+
+	build, err := c.GetBuild(client, owner, repo, buildNumber)
+	stages, err := c.GetStages(client, owner, repo, buildNumber)
+
+	if err != nil {
+		fmt.Printf("Unable to retrieve pipeline %s/%s build # %d \n", owner, repo, buildNumber)
+		return nil
+	}
+	fmt.Println(len(stages))
+	stage := stages[build.CurrentStage-1]
+
+	if stage == nil && stage.Status != "WAITING" {
+		fmt.Printf("Build #%d: %s", buildNumber, build.Status)
+		return nil
+	}
+
+	data := fmt.Sprintf(`{"status":"%s","timestamp": %v }`, build.Status, time.Now().UnixNano())
+	endpoint := fmt.Sprintf("/api/v1/pipelines/%s/%s/builds/%d/stages/%d?continue=yes", owner, repo, buildNumber, build.CurrentStage)
+	_, err = c.sendAPIRequest(client, "POST", endpoint, []byte(data))
+	if err != nil {
+		return err
+	}
+	fmt.Print("Resuming build.")
+	time.Sleep(2 * time.Second)
+	c.monitorBuildStatus(client, buildNumber, owner, repo, true)
 	return nil
 }
 
