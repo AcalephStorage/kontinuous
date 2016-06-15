@@ -454,11 +454,11 @@ func encryptSecret(secret string) string {
 }
 
 func createKontinuousResouces(path string) error {
-	// cmd := fmt.Sprintf("kubectl apply -f %s", path)
-	// _, err := exec.Command("bash", "-c", cmd).Output()
-	// if err != nil {
-	// 	return err
-	// }
+	cmd := fmt.Sprintf("kubectl apply -f %s", path)
+	_, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
