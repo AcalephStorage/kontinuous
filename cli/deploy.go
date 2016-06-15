@@ -1,15 +1,24 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"os/exec"
 	"strings"
 	"text/template"
 	"time"
+
+	"encoding/base64"
+	"encoding/pem"
+
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
 )
 
 var namespaceData = `
@@ -29,6 +38,18 @@ var secretData = `
   "GithubClientSecret": "{{.GHSecret}}"
 }
 
+`
+
+var sslSecrets = `
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ssl-secret
+  namespace: {{.Namespace}}
+data:
+  cert: {{.Cert}}
+  key: {{.Key}}
 `
 
 var secret = `
@@ -263,6 +284,9 @@ spec:
         - name: kontinuous-secrets
           secret:
             secretName: kontinuous-secrets
+        - name: ssl
+          secret:
+            secretName: ssl-secret
       containers:
         - name: kontinuous
           image: quay.io/acaleph/kontinuous:latest
@@ -273,7 +297,7 @@ spec:
             - name: S3_URL
               value: http://minio.{{.Namespace}}:9000
             - name: KONTINUOUS_URL
-              value: http://{{.KontinuousIP}}:8080
+              value: https://{{.KontinuousIP}}:8080
             - name: INTERNAL_REGISTRY
               value: {{.RegistryIP}}:5000
           ports:
@@ -282,6 +306,9 @@ spec:
           volumeMounts:
             - mountPath: /.secret
               name: kontinuous-secrets
+              readOnly: true
+            - mountPath: /.certs
+              name: ssl
               readOnly: true
 `
 
@@ -332,20 +359,28 @@ spec:
       name: kontinuous-ui
       namespace: {{.Namespace}}
     spec:
+      volumes:
+        - name: ssl
+          secret:
+            secretName: ssl-secret
       containers:
       - env:
         - name: GITHUB_CLIENT_CALLBACK
-          value: http://{{.DashboardIP}}:5000
+          value: https://{{.DashboardIP}}:5000
         - name: GITHUB_CLIENT_ID
           value: {{.GHClient}}
         - name: KONTINUOUS_API_URL
-          value: http://{{.KontinuousIP}}:8080
+          value: https://{{.KontinuousIP}}:8080
         image: quay.io/acaleph/kontinuous-ui:latest
         imagePullPolicy: Always
         name: kontinuous-ui
         ports:
         - containerPort: 5000
           name: dashboard
+        volumeMounts:
+        - name: ssl
+          readOnly: true
+          mountPath: /secrets/ssl
 
 `
 
@@ -360,6 +395,8 @@ type Deploy struct {
 	RegistryIP   string
 	GHClient     string
 	GHSecret     string
+	Cert         string
+	Key          string
 }
 
 func generateResource(templateStr string, deploy *Deploy) (string, error) {
@@ -417,11 +454,11 @@ func encryptSecret(secret string) string {
 }
 
 func createKontinuousResouces(path string) error {
-	cmd := fmt.Sprintf("kubectl apply -f %s", path)
-	_, err := exec.Command("bash", "-c", cmd).Output()
-	if err != nil {
-		return err
-	}
+	// cmd := fmt.Sprintf("kubectl apply -f %s", path)
+	// _, err := exec.Command("bash", "-c", cmd).Output()
+	// if err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -558,6 +595,54 @@ func RemoveResources() error {
 	return nil
 }
 
+func generateCertandKey() (string, string, error) {
+	random := rand.Reader
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		fmt.Println(err)
+		return "", "", err
+	}
+
+	now := time.Now()
+	then := now.Add(60 * 60 * 24 * 365 * 1000 * 1000 * 1000)
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:   "kontinuous",
+			Organization: []string{"kontinuous"},
+		},
+		NotBefore:             now,
+		NotAfter:              then,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement,
+		BasicConstraintsValid: true,
+		IsCA: true,
+	}
+
+	derBytes, err := x509.CreateCertificate(random, &template,
+		&template, &key.PublicKey, key)
+
+	if err != nil {
+		fmt.Println("Unable to create certificate")
+		return "", "", err
+	}
+
+	var certBytes, keyBytes bytes.Buffer
+
+	certPEMFile := bufio.NewWriter(&certBytes)
+	pem.Encode(certPEMFile, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	certPEMFile.Flush()
+	certPEMb64 := base64.StdEncoding.EncodeToString(certBytes.Bytes())
+
+	keyPEMFile := bufio.NewWriter(&keyBytes)
+	pem.Encode(keyPEMFile, &pem.Block{Type: "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	keyPEMFile.Flush()
+	keyPEMb64 := base64.StdEncoding.EncodeToString(keyBytes.Bytes())
+
+	return certPEMb64, keyPEMb64, nil
+
+}
+
 func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error {
 	fmt.Println("Deploying Kontinuous resources ...")
 	deploy := Deploy{
@@ -586,29 +671,28 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	deploy.SecretData = encryptSecret(sData)
 	deployResource(secret, "APP_SECRET", &deploy)
 
-	ip, _ := fetchKontinuousIP("kontinuous", deploy.Namespace)
-	dashboardIp, _ := fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
-	registryIp, _ := fetchClusterIP("registry", deploy.Namespace)
+	deploy.Cert, deploy.Key, _ = generateCertandKey()
+	deploy.KontinuousIP, _ = fetchKontinuousIP("kontinuous", deploy.Namespace)
+	deploy.DashboardIP, _ = fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
+	deploy.RegistryIP, _ = fetchClusterIP("registry", deploy.Namespace)
 
-	deploy.DashboardIP = dashboardIp
-	deploy.KontinuousIP = ip
-	deploy.RegistryIP = registryIp
+	deployResource(sslSecrets, "SSL_SECRET", &deploy)
 
 	err = deployResource(kontinuousDep, "KONTINUOUS_DEPLOYMENT", &deploy)
 
 	if err != nil {
-		fmt.Println("Unable to deploy Kontinuous Deployment \n %s", err.Error())
+		fmt.Println("Unable to deploy Kontinuous Api \n %s", err.Error())
 		return err
 	}
 	err = deployResource(dashboardDep, "DASHBOARD_DEPLOYMENT", &deploy)
 	if err != nil {
-		fmt.Printf("Unable to deploy Kontinuous UI Deployment \n %s", err.Error())
+		fmt.Printf("Unable to deploy Kontinuous UI  \n %s", err.Error())
 		return err
 	}
 
 	fmt.Println("_____________________________________________________________\n")
-	fmt.Printf("Kontinuous API : http://%s:8080 \n", deploy.KontinuousIP)
-	fmt.Printf("Kontinuous Dashboard : http://%s:5000 \n", deploy.DashboardIP)
+	fmt.Printf("Kontinuous API : https://%s:8080 \n", deploy.KontinuousIP)
+	fmt.Printf("Kontinuous Dashboard : https://%s:5000 \n", deploy.DashboardIP)
 	fmt.Println("_____________________________________________________________\n")
 
 	return nil
