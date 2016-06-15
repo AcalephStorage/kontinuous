@@ -342,7 +342,7 @@ func getLatestBuild(c *cli.Context) {
 	finished := time.Unix(0, pipeline.LatestBuild.Finished).Format(time.RFC3339)
 
 	table.AddRow("")
-	table.AddRow("Name", pipelineName)
+	table.AddRow("Name:", pipelineName)
 	table.AddRow("Build No:", pipeline.LatestBuild.Number)
 	table.AddRow("Status:", pipeline.LatestBuild.Status)
 	table.AddRow("Author:", pipeline.LatestBuild.Author)
@@ -519,6 +519,12 @@ func resumeBuild(c *cli.Context) {
 	}
 	owner, repo, _ := parseNameArg(c.Args().First())
 	buildNo := c.Int("build")
+
+	if owner == "" || repo == "" || buildNo == 0 {
+		fmt.Println("Missing fields.")
+		os.Exit(1)
+	}
+
 	err = config.ResumeBuild(http.DefaultClient, owner, repo, buildNo)
 
 	if err != nil {
