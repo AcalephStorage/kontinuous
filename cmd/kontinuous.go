@@ -11,6 +11,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/swagger"
+	"golang.org/x/net/http2"
 
 	"github.com/AcalephStorage/kontinuous/api"
 	"github.com/AcalephStorage/kontinuous/kube"
@@ -97,8 +98,17 @@ func main() {
 
 	addr := net.JoinHostPort(bindAddr, bindPort)
 	server := &http.Server{Addr: addr, Handler: container}
+
+	if err := http2.ConfigureServer(server, nil); err != nil {
+		log.WithError(err).Errorln("unable to configure http2")
+		os.Exit(1)
+	}
+
 	log.Infof("Listening on: %s", addr)
-	log.Fatal(server.ListenAndServe())
+
+	certFile := getEnv("CERT_FILE", "/.certs/cert")
+	keyFile := getEnv("KEY_FILE", "/.certs/key")
+	log.Fatal(server.ListenAndServeTLS(certFile, keyFile))
 }
 
 func setLogLevel() {

@@ -36,6 +36,9 @@ const (
 	// BuildSuccess indicates that the build was successful
 	BuildSuccess = "SUCCESS"
 
+	// BuildWaiting indicates that the build is waiting for user input
+	BuildWaiting = "WAITING"
+
 	claimsIssuer      = "http://kontinuous.io"
 	claimsSubject     = "kontinuous"
 	buildEndpoint     = "%s/api/v1/pipelines/%s/%s/builds"

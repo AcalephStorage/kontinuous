@@ -49,8 +49,9 @@ func (s *StageResource) extend(ws *restful.WebService) {
 		Param(ws.PathParameter("repo", "repository name").DataType("string")).
 		Param(ws.PathParameter("buildNumber", "build number").DataType("int")).
 		Param(ws.PathParameter("stageIndex", "stage index").DataType("int")).
+		Param(ws.QueryParameter("continue", "continue to next stage").DataType("string")).
 		Reads(ps.StatusUpdate{}).
-		Writes(ps.Stage{}))
+		Writes(ps.StatusUpdate{}))
 
 	ws.Route(ws.POST("/{owner}/{repo}/builds/{buildNumber}/stages/{stageIndex}/run").To(s.run).
 		Doc("Run build at given stage").
@@ -184,6 +185,7 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 	repo := req.PathParameter("repo")
 	buildNumber := req.PathParameter("buildNumber")
 	stageIndex := req.PathParameter("stageIndex")
+	cont := req.QueryParameter("continue")
 
 	pipeline, build, stage, err := s.fetchResources(owner, repo, buildNumber, stageIndex)
 	if err != nil {
@@ -204,9 +206,37 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 		return
 	}
 
+	if stage.Type == "wait" {
+		switch cont {
+		case "yes":
+			status.Status = ps.BuildSuccess
+			status.Timestamp = time.Now().UnixNano()
+		default:
+			return
+		}
+	}
+
 	nextStage, err := stage.UpdateStatus(status, pipeline, build, s.KVClient, client)
+
 	if err != nil {
-		jsonError(res, http.StatusBadRequest, err, "Unable to update stage status")
+		jsonError(res, http.StatusInternalServerError, err, "Unable to update stage status")
+		return
+	}
+
+	if nextStage != nil && nextStage.Type == "wait" {
+		status = new(ps.StatusUpdate)
+		status.Timestamp = time.Now().UnixNano()
+		status.Status = ps.BuildWaiting
+		status.Message = "Do you want to continue? "
+		if len(nextStage.Params) > 0 && nextStage.Params["message"].(string) != " " {
+			status.Message = nextStage.Params["message"].(string)
+		}
+
+		_, err := nextStage.UpdateStatus(status, pipeline, build, s.KVClient, client)
+		if err != nil {
+			jsonError(res, http.StatusInternalServerError, err, "Unable to update stage status")
+		}
+		res.WriteHeaderAndEntity(http.StatusOK, status)
 		return
 	}
 
@@ -214,9 +244,10 @@ func (s *StageResource) update(req *restful.Request, res *restful.Response) {
 		if err, msg := s.runStage(pipeline, build, nextStage, client); err != nil {
 			jsonError(res, http.StatusInternalServerError, err, msg)
 		}
+
 	}
 
-	res.WriteHeader(http.StatusOK)
+	res.WriteHeaderAndEntity(http.StatusOK, nil)
 }
 
 func (s *StageResource) fetchResources(owner, repo, buildNumber, stageIndex string) (*ps.Pipeline, *ps.Build, *ps.Stage, error) {
