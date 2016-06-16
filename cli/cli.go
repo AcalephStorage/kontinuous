@@ -172,6 +172,43 @@ func main() {
 
 			Action: initialize,
 		},
+		{
+			Name: "describe",
+			Subcommands: []cli.Command{
+				{
+					Name:      "pipeline",
+					Usage:     "display pipeline latest build information",
+					ArgsUsage: "[pipeline-name]",
+					Before: func(c *cli.Context) error {
+						p := strings.TrimSpace(c.Args().First())
+						if len(p) > 0 {
+							return requireNameArg(c)
+						}
+						return nil
+					},
+					Action: getLatestBuild,
+				},
+			},
+		},
+		{
+			Name:      "resume",
+			Usage:     "resume pipeline builds",
+			ArgsUsage: "[pipeline-name]",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "build, b",
+					Usage: "Required, Pipeline build number you want to resume",
+				},
+			},
+			Before: func(c *cli.Context) error {
+				p := strings.TrimSpace(c.Args().First())
+				if len(p) > 0 {
+					return requireNameArg(c)
+				}
+				return nil
+			},
+			Action: resumeBuild,
+		},
 	}
 	app.Run(os.Args)
 }
@@ -275,6 +312,48 @@ func getBuilds(c *cli.Context) {
 	fmt.Println(table)
 }
 
+func getLatestBuild(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+
+	owner, repo, _ := parseNameArg(c.Args().First())
+	pipelineName := fmt.Sprintf("%s/%s", owner, repo)
+
+	pipeline, err := config.GetPipeline(http.DefaultClient, pipelineName)
+	if err != nil {
+		fmt.Printf("Pipeline %s doesn't exist \n", pipelineName)
+		os.Exit(1)
+	}
+
+	stages, _ := config.GetStages(http.DefaultClient, owner, repo, pipeline.LatestBuild.Number)
+
+	table := uitable.New()
+	table.Wrap = true
+
+	if pipeline.LatestBuild == nil {
+		table.AddRow("No available builds for pipeline", pipelineName)
+		fmt.Println(table)
+		os.Exit(1)
+	}
+
+	started := time.Unix(0, pipeline.LatestBuild.Created).Format(time.RFC3339)
+	finished := time.Unix(0, pipeline.LatestBuild.Finished).Format(time.RFC3339)
+
+	table.AddRow("")
+	table.AddRow("Name:", pipelineName)
+	table.AddRow("Build No:", pipeline.LatestBuild.Number)
+	table.AddRow("Status:", pipeline.LatestBuild.Status)
+	table.AddRow("Author:", pipeline.LatestBuild.Author)
+	table.AddRow("Started:", started)
+	table.AddRow("Finished:", finished)
+	table.AddRow("No of Stages:", len(stages))
+	table.AddRow("")
+	fmt.Println(table)
+
+}
+
 func getStages(c *cli.Context) {
 	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
 	if err != nil {
@@ -338,8 +417,6 @@ func createBuild(c *cli.Context) {
 
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Printf("building pipeline %s/%s ", owner, repo)
 	}
 }
 
@@ -433,4 +510,25 @@ func removeDeployedApp(c *cli.Context) {
 	}
 
 	fmt.Println("Success! Kontinuous resources has been removed from the cluster. ")
+}
+
+func resumeBuild(c *cli.Context) {
+	config, err := apiReq.GetConfigFromFile(c.GlobalString("conf"))
+	if err != nil {
+		os.Exit(1)
+	}
+	owner, repo, _ := parseNameArg(c.Args().First())
+	buildNo := c.Int("build")
+
+	if owner == "" || repo == "" || buildNo == 0 {
+		fmt.Println("Missing fields.")
+		os.Exit(1)
+	}
+
+	err = config.ResumeBuild(http.DefaultClient, owner, repo, buildNo)
+
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
