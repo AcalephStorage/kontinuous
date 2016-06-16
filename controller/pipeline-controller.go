@@ -109,32 +109,3 @@ func (pc *PipelineController) ListPipelines() (pipelines []*model.Pipeline, err 
 	}
 	return
 }
-
-// client := newSCMClient(req)
-// 	pipeline := new(ps.Pipeline)
-
-// 	if err := req.ReadEntity(pipeline); err != nil {
-// 		jsonError(res, http.StatusInternalServerError, err, "Unable to readline pipeline from request")
-// 		return
-// 	}
-
-// 	// save user token if not saved already (for remote access)
-// 	if _, exists := ps.FindUser(pipeline.Login, p.Client); !exists {
-// 		u := &ps.User{
-// 			Name:     pipeline.Login,
-// 			RemoteID: pipeline.Login,
-// 			Token:    req.HeaderParameter("Authorization"),
-// 		}
-
-// 		if err := u.Save(p.Client); err != nil {
-// 			jsonError(res, http.StatusInternalServerError, err, "Unable to save user details")
-// 			return
-// 		}
-// 	}
-
-// 	if err := ps.CreatePipeline(pipeline, client, p.Client); err != nil {
-// 		jsonError(res, 422, err, "Unable to create pipeline")
-// 		return
-// 	}
-
-// 	res.WriteHeaderAndEntity(http.StatusCreated, pipeline)

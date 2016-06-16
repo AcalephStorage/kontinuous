@@ -23,12 +23,17 @@ lint:
 	@echo "--> Running go lint..."
 	golint ./...
 
-
-build: format
-	@echo "--> Building..."
+build-api: format
+	@echo "--> Building API..."
 	@mkdir -p build/bin
 	@go build -v -o build/bin/${APP_NAME} ./cmd
+
+build-cli: format
+	@echo "--> Building CLI..."
+	@mkdir -p build/bin
 	@go build -v -o build/bin/${APP_NAME}-cli ./cli
+
+build: build-api build-cli
 
 package: build
 	@echo "--> Packaging..."

@@ -11,6 +11,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/swagger"
+	"github.com/joho/godotenv"
 	"github.com/urfave/cli"
 
 	"github.com/AcalephStorage/kontinuous/api"
@@ -23,6 +24,8 @@ var (
 	appName = "kontinuous"
 	version = "dev"
 )
+
+const logTimestampFormat = "20060102-15:04:05-MST"
 
 // app flag names
 const (
@@ -171,7 +174,8 @@ var allowedCorsHeaders = []string{
 }
 
 func main() {
-	log.Info("Starting Kontinuous...")
+	setLogger()
+	loadDotEnv()
 
 	app := cli.NewApp()
 	app.Name = appName
@@ -181,8 +185,28 @@ func main() {
 	app.Run(os.Args)
 }
 
+func setLogger() {
+	textFormat := &log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: logTimestampFormat,
+	}
+	log.SetFormatter(textFormat)
+	restful.SetLogger(&restfulLogrusLogger{})
+}
+
+func loadDotEnv() {
+	if _, err := os.Stat(".env"); os.IsNotExist(err) {
+		log.Info("skipped loading .env file")
+		return
+	}
+	log.Info(".env loaded")
+	if err := godotenv.Load(); err != nil {
+		log.WithError(err).Error("error loading .env")
+	}
+}
+
 func start(context *cli.Context) error {
-	log.Infoln("kontinuous started...")
+	log.Info("Starting Kontinuous...")
 
 	// enable debug mode
 	debug := context.Bool(debugFlag)
@@ -205,7 +229,6 @@ func start(context *cli.Context) error {
 		log.WithError(err).Errorln(msg)
 		return cli.NewExitError(msg, loadSecretsError)
 	}
-	log.Infoln("secrets loaded.")
 
 	// create restful container
 	container := kontinuousRestfulContainer()
@@ -227,6 +250,7 @@ func start(context *cli.Context) error {
 	pipeline := createPipelineResource(kvClient, auth.AuthFilter)
 	repo := new(api.RepositoryResource)
 
+	log.Info("registering endpoints...")
 	// register endpoints
 	auth.Register(container)
 	pipeline.Register(container)
@@ -251,10 +275,11 @@ func start(context *cli.Context) error {
 	port := context.String(bindPortFlag)
 	addr := net.JoinHostPort(host, port)
 
+	log.Infof("Kontinuous API listening at: %s", addr)
 	if err := http.ListenAndServe(addr, container); err != nil {
 		log.WithError(err).Errorln("Stopping kontinuous...")
 	}
-	log.Info("Stopping kontinuous...")
+	log.Info("Kontinuous stopped")
 	return nil
 }
 
@@ -262,13 +287,14 @@ func loadSecrets(secrets map[string]interface{}) error {
 	for file, data := range secrets {
 		content, err := ioutil.ReadFile(file)
 		if err != nil {
-			log.WithError(err).Debugf("unable to read secrets file: %s", file)
-			return err
+			log.Infof("unable to read secrets file: %s. Not loaded.", file)
+			continue
 		}
 		if err := json.Unmarshal(content, data); err != nil {
 			log.WithError(err).Debugf("unable to decode json from secrets file: %s", file)
 			return err
 		}
+		log.Infof("%s loaded.", file)
 	}
 	return nil
 }
@@ -332,4 +358,14 @@ func createPipelineResource(kvClient kv.Client, authFilter *api.AuthFilter) *api
 	}
 
 	return pipelineResource
+}
+
+// custom logger for go-restful to log with logrus
+type restfulLogrusLogger struct{}
+
+func (r *restfulLogrusLogger) Print(v ...interface{}) {
+	log.Info(v...)
+}
+func (r *restfulLogrusLogger) Printf(format string, v ...interface{}) {
+	log.Infof(format, v...)
 }

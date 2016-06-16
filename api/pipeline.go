@@ -30,7 +30,8 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Operation("list").
 		Produces(restful.MIME_JSON).
 		Writes([]model.Pipeline{}).
-		Filter(p.AuthFilter.requireBearerToken))
+		Filter(p.AuthFilter.requireBearerToken).
+		Filter(requestLogger))
 
 	// -- POST /api/v1/pipelines
 	ws.Route(ws.POST("").To(p.create).
@@ -38,7 +39,8 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Operation("create").
 		Consumes(restful.MIME_JSON).
 		Reads(model.Pipeline{}).
-		Filter(p.AuthFilter.requireBearerToken))
+		Filter(p.AuthFilter.requireBearerToken).
+		Filter(requestLogger))
 
 	// -- GET /api/v1/pipelines/{pipelineName}
 	ws.Route(ws.GET("/{pipelineName}").To(p.show).
@@ -47,7 +49,8 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Produces(restful.MIME_JSON).
 		Param(ws.PathParameter("pipelineName", "pipeline name").DataType("string")).
 		Writes(model.Pipeline{}).
-		Filter(p.AuthFilter.requireBearerToken))
+		Filter(p.AuthFilter.requireBearerToken).
+		Filter(requestLogger))
 
 	// -- POST /api/v1/pipelines/{pipelineName}
 	ws.Route(ws.POST("/{pipelineName}").To(p.update).
@@ -56,14 +59,16 @@ func (p *PipelineResource) Register(container *restful.Container) {
 		Consumes(restful.MIME_JSON).
 		Param(ws.PathParameter("pipelineName", "pipeline name").DataType("string")).
 		Reads(model.Pipeline{}).
-		Filter(p.AuthFilter.requireBearerToken))
+		Filter(p.AuthFilter.requireBearerToken).
+		Filter(requestLogger))
 
 	// -- DELETE /api/v1/pipelines/{pipelineName}
 	ws.Route(ws.DELETE("/{pipelineName}").To(p.delete).
 		Doc("Delete pipeline").
 		Operation("delete").
 		Param(ws.PathParameter("pipelineName", "pipeline name").DataType("string")).
-		Filter(p.AuthFilter.requireBearerToken))
+		Filter(p.AuthFilter.requireBearerToken).
+		Filter(requestLogger))
 
 	// // -- GET /apiFIXME: i don't we need this???
 	// ws.Route(ws.GET("/{owner}/{repo}/definition").To(p.definition).

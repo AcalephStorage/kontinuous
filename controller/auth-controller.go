@@ -39,6 +39,7 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 
 	// create or update user
 	username = *ghUser.Login
+	log.Infof("logging in as github |%s|...", username)
 
 	rawEmails, err := gc.GetAuthenticatedUserEmails()
 	if err != nil {
@@ -53,7 +54,6 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 
 	user, err := ac.UserController.GetUser(model.GithubUser, username)
 	if user == nil || err != nil {
-		log.Info("new user login. creating new user...")
 		// create user
 		details := &model.UserDetails{}
 		if ghUser.AvatarURL != nil {
@@ -75,7 +75,7 @@ func (ac *AuthController) GithubLogin(code, state string) (username, jwt string,
 			log.WithError(err).Debug("unable to create kontinuous user")
 			return
 		}
-		log.Info("new user created.")
+		log.Info("new kontinuous user created.")
 	} else {
 		// update user and emails
 		if user.Emails == nil {

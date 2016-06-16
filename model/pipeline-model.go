@@ -1,13 +1,8 @@
 package model
 
-type (
-	PipelineStatus string
-	RepositoryType string
-)
+type PipelineStatus string
 
 const (
-	GithubRepository RepositoryType = "github"
-
 	PipelineCreated PipelineStatus = "created"
 	PipelineReady   PipelineStatus = "ready"
 )

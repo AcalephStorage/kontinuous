@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
-	"time"
 
 	"encoding/base64"
 	"encoding/json"
@@ -27,29 +25,6 @@ import (
 
 var apiLogger = util.NewContextLogger("api")
 
-// filters
-var (
-	ncsaCommonLogFormatLogger restful.FilterFunction = func(req *restful.Request, resp *restful.Response, chain *restful.FilterChain) {
-		var username = "-"
-		if req.Request.URL.User != nil {
-			if name := req.Request.URL.User.Username(); name != "" {
-				username = name
-			}
-		}
-		chain.ProcessFilter(req, resp)
-		logrus.Printf("%s - %s [%s] \"%s %s %s\" %d %d",
-			strings.Split(req.Request.RemoteAddr, ":")[0],
-			username,
-			time.Now().Format("02/Jan/2006:15:04:05 -0700"),
-			req.Request.Method,
-			req.Request.URL.RequestURI(),
-			req.Request.Proto,
-			resp.StatusCode(),
-			resp.ContentLength(),
-		)
-	}
-)
-
 type (
 	Error struct {
 		Code    int    `json:"Code"`
@@ -61,12 +36,6 @@ type (
 		ID    int    `json:"id"`
 	}
 )
-
-// utils
-func jsonError(res *restful.Response, statusCode int, err error, msg string) {
-	logrus.WithError(err).Error(msg)
-	res.WriteServiceError(statusCode, restful.NewError(statusCode, err.Error()))
-}
 
 // FIXME: should not be here
 func newSCMClient(req *restful.Request) scm.Client {

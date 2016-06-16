@@ -50,7 +50,9 @@ func (ps *PipelineStore) Get(id string) (pipeline *model.Pipeline, err error) {
 		log.WithError(err).Debug("unable to get pipeline data from etcd")
 		return
 	}
-	err = json.Unmarshal(data, pipeline)
+	var p model.Pipeline
+	err = json.Unmarshal(data, &p)
+	pipeline = &p
 	if err != nil {
 		log.WithError(err).Debug("unable to unmarshal pipeline data")
 	}
@@ -66,7 +68,9 @@ func (ps *PipelineStore) List() (list []*model.Pipeline, err error) {
 	}
 	list = make([]*model.Pipeline, len(values))
 	for i, value := range values {
-		err = json.Unmarshal(value, list[i])
+		var pipeline model.Pipeline
+		err = json.Unmarshal(value, &pipeline)
+		list[i] = &pipeline
 		if err != nil {
 			log.WithError(err).Debug("unable to unmarshal pipeline data")
 			return nil, err

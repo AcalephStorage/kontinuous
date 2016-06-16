@@ -5,12 +5,17 @@ import (
 
 	"net/http"
 
+	"github.com/AcalephStorage/kontinuous/controller"
+	"github.com/AcalephStorage/kontinuous/model"
 	"github.com/AcalephStorage/kontinuous/scm"
 	"github.com/emicklei/go-restful"
 )
 
 // RepositoryResource defines the endpoints to access the git repositories
-type RepositoryResource struct{}
+type RepositoryResource struct {
+	*AuthFilter
+	*controller.RepositoryController
+}
 
 // Register registers the endpoints to the container
 func (r *RepositoryResource) Register(container *restful.Container) {
@@ -18,39 +23,41 @@ func (r *RepositoryResource) Register(container *restful.Container) {
 
 	ws.
 		Path("/api/v1/repositories").
-		Consumes(restful.MIME_JSON).
-		Produces(restful.MIME_JSON).
 		Doc("manage repositories").
-		Produces(restful.MIME_JSON).
-		Filter(ncsaCommonLogFormatLogger)
-		// FIXME: fix filters
-		// Filter(ncsaCommonLogFormatLogger).
-		// Filter(authenticate).
-		// Filter(requireAccessToken)
+		Filter(r.AuthFilter.requireBearerToken).
+		Filter(requestLogger)
 
-	ws.Route(ws.GET("").To(r.list).
-		Doc("Get all repositories accessible by the current user").
-		Operation("list").
-		Writes([]scm.Repository{}))
+	// ws.Route(ws.GET("").To(list).
+	// 	Doc("Get all github repositories for the user").
+	// 	Operation("list").
+	// 	Produces(restful.MIME_JSON).
+	// 	Param(ws.QueryParameter("repo", "the repository type")).
+	// 	Writes([]model.Repository))
 
-	ws.Route(ws.GET("/{owner}/{name}").To(r.show).
-		Doc("Get repository details").
-		Operation("show").
-		Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
-		Param(ws.PathParameter("name", "repository name").DataType("string")).
-		Writes(scm.Repository{}))
+	// ws.Route(ws.GET("").To(r.list).
+	// 	Doc("Get all repositories accessible by the current user").
+	// 	Operation("list").
+	// 	Writes([]scm.Repository{}))
+
+	// ws.Route(ws.GET("/{owner}/{name}").To(r.show).
+	// 	Doc("Get repository details").
+	// 	Operation("show").
+	// 	Param(ws.PathParameter("owner", "repository owner name").DataType("string")).
+	// 	Param(ws.PathParameter("name", "repository name").DataType("string")).
+	// 	Writes(scm.Repository{}))
 
 	container.Add(ws)
 }
 
-func (r *RepositoryResource) list(req *restful.Request, res *restful.Response) {
-	client := newSCMClient(req)
-	repos, err := client.ListRepositories("")
+func (rr *RepositoryResource) list(req *restful.Request, res *restful.Response) {
+	user := req.Attribute("user_id").(string)
+	repoType := req.QueryParameter("repo")
+
+	repos, err := rr.RepositoryController.List(user, model.RepositoryType(repoType))
 	if err != nil {
-		jsonError(res, http.StatusInternalServerError, err, "Unable to list repositories")
+		jsonError(res, http.StatusBadRequest, err, "unable to get list of repositories")
 		return
 	}
-
 	res.WriteEntity(repos)
 }
 
