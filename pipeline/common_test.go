@@ -38,9 +38,13 @@ spec:
       labels:
         app: my-pipeline
       image: acaleph/deploy-base # Overridable?
+    vars:
+      sampleVars: sample
     stages:
     - name: Test Infra
       type: command
+      vars:
+        testVars: test
       params:
         command: ["test_infra.sh", "--hack-the-gibson"]
         env: # env vars
@@ -224,6 +228,13 @@ func (s MockSCMClient) GetFileContent(owner, repo, path, ref string) ([]byte, bo
 		return nil, false
 	}
 	return []byte(validyamlSpec), true
+}
+
+func (s MockSCMClient) GetDirectoryContent(owner, repo, path, ref string) ([]interface{}, bool) {
+	if !s.success {
+		return nil, false
+	}
+	return []interface{}{[]byte(validyamlSpec), []byte(invalidYamlSpec)}, true
 }
 
 func (s MockSCMClient) GetContents(owner, repo, path, ref string) (*scm.RepositoryContent, bool) {

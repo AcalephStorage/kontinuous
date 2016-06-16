@@ -1,7 +1,7 @@
 #!/bin/bash
 
 setup() {
-	mkdir -p /kontinuous/{src,status}/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}
+	mkdir -p /kontinuous/{src,status}/${KONTINUOUS_PIPELINE_ID}/${KONTINUOUS_BUILD_ID}/${KONTINUOUS_STAGE_ID}
 }
 
 prepare_kube_config() {
@@ -11,7 +11,7 @@ prepare_kube_config() {
 
 wait_for_ready() {
 	echo "Waiting for ready signal..."
-	until [[ -f /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/ready ]]; do
+	until [[ -f /kontinuous/status/${KONTINUOUS_PIPELINE_ID}/${KONTINUOUS_BUILD_ID}/${KONTINUOUS_STAGE_ID}/ready ]]; do
 		sleep 5
 	done
 }
@@ -39,7 +39,7 @@ deploy(){
         return 1
     fi
 
-    kubectl create -f ${deployFile}
+    kubectl apply -f ${deployFile}
     if [[ "$?" != "0" ]]; then
         echo "Deploy Failed. Unable to deploy app."
         return 1
@@ -68,7 +68,7 @@ clean(){
 run_image() {
 	local pod_name="$1"
 	# get which node the current job is running on
-	local node_name=$(kubectl get pods ${pod_name} -o template --template="{{ .spec.nodeName }}" --namespace=${NAMESPACE})
+	local node_name=$(kubectl get pods ${pod_name} -o template --template="{{ .spec.nodeName }}" --namespace=${KONTINUOUS_NAMESPACE})
 
 	# prepare vars
 	local commands="`for cmd in ${COMMAND}; do echo \"        - ${cmd}\"; done`"
@@ -77,7 +77,7 @@ run_image() {
 	# do the sed thingy
 	cp /root/pod_template.yml /tmp/pod.yml
 	sed -i "s|__POD_NAME__|${pod_name}|g" /tmp/pod.yml
-	sed -i "s|__NAMESPACE__|${NAMESPACE}|g" /tmp/pod.yml
+	sed -i "s|__NAMESPACE__|${KONTINUOUS_NAMESPACE}|g" /tmp/pod.yml
 	sed -i "s|__WORKING_DIR__|${WORKING_DIR}|g" /tmp/pod.yml
 	sed -i "s|__NODE_NAME__|${node_name}|g" /tmp/pod.yml
 	sed -i "s|__IMAGE__|${IMAGE}|g" /tmp/pod.yml
@@ -86,17 +86,17 @@ run_image() {
 	echo "      env:" >> /tmp/pod.yml
 	echo "$env_vars" >> /tmp/pod.yml
 
-	kubectl create -f /tmp/pod.yml
+	kubectl apply -f /tmp/pod.yml
 }
 
 generate_result(){
 	local result="$1"
 	if [[ "$result" != "0" ]]; then
-			touch /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/fail
+			touch /kontinuous/status/${KONTINUOUS_PIPELINE_ID}/${KONTINUOUS_BUILD_ID}/${KONTINUOUS_STAGE_ID}/fail
 			echo "Build Fail"
 			exit 1
 		else
-			touch /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/success
+			touch /kontinuous/status/${KONTINUOUS_PIPELINE_ID}/${KONTINUOUS_BUILD_ID}/${KONTINUOUS_STAGE_ID}/success
 			echo "Build Successful"	
 			exit 0
 	fi
@@ -109,7 +109,7 @@ wait_for_success() {
 	local exit_code_line=""
 	until [[ "${exit_code_line}" != "" ]]; do
 		sleep 5
-		exit_code_line=$(kubectl get pods ${pod_name}-cmd -o yaml --namespace="${NAMESPACE}" | grep exitCode)
+		exit_code_line=$(kubectl get pods ${pod_name}-cmd -o yaml --namespace="${KONTINUOUS_NAMESPACE}" | grep exitCode)
 	done
 
 	local exit_code=$(echo ${exit_code_line} | awk '{print $2}')
@@ -136,7 +136,7 @@ run_command() {
 	fi
 
 	# run image as a pod in the same node as this job
-	local pod_name=$(kubectl get pods --namespace=${NAMESPACE} --selector="pipeline=${PIPELINE_ID},build=${BUILD_ID},stage=${STAGE_ID}" --no-headers | awk '{print $1}')
+	local pod_name=$(kubectl get pods --namespace=${KONTINUOUS_NAMESPACE} --selector="pipeline=${KONTINUOUS_PIPELINE_ID},build=${KONTINUOUS_BUILD_ID},stage=${KONTINUOUS_STAGE_ID}" --no-headers | awk '{print $1}')
 	run_image ${pod_name}
 
 	wait_for_success "${pod_name}"
@@ -145,7 +145,7 @@ run_command() {
 	echo "Command Agent Logs:"
 	echo "-------------------"
 	# print logs afterwards
-	kubectl logs --namespace="${NAMESPACE}" "${pod_name}-cmd"
+	kubectl logs --namespace="${KONTINUOUS_NAMESPACE}" "${pod_name}-cmd"
 
 	# cleanup
 	kubectl delete -f /tmp/pod.yml || true
