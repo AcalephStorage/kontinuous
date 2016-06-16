@@ -93,7 +93,7 @@ notify_kontinuous() {
 		docker_image=$(cat /kontinuous/status/${PIPELINE_ID}/${BUILD_ID}/${STAGE_ID}/docker-image)
 	fi
 	local data="{ \"status\": \"${status}\", \"job_name\": \"${job_name}\", \"pod_name\": \"${pod_name}\", \"timestamp\": $(date +%s%N), \"docker-image\": \"${docker-image}\" }"
-	curl -X POST -H 'Content-Type: application/json' "${KONTINUOUS_URL}/api/v1/pipelines/${GIT_OWNER}/${GIT_REPO}/builds/${BUILD_ID}/stages/${STAGE_ID}" -d "${data}"
+	curl -k -X POST -H 'Content-Type: application/json' "${KONTINUOUS_URL}/api/v1/pipelines/${GIT_OWNER}/${GIT_REPO}/builds/${BUILD_ID}/stages/${STAGE_ID}" -d "${data}"
 }
 
 wait_for_ready() {

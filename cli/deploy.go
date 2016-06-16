@@ -254,8 +254,11 @@ spec:
     type: ci-cd
   ports:
     - name: api
-      port: 8080
+      port: 8085
       targetPort: 3005
+    - name: dashboard
+      port: 5000
+      targetPort: 5000
 `
 
 var kontinuousDep = `
@@ -295,9 +298,9 @@ spec:
             - name: KV_ADDRESS
               value: etcd:2379
             - name: S3_URL
-              value: http://minio.{{.Namespace}}:9000
+              value: http://minio.release:9000
             - name: KONTINUOUS_URL
-              value: https://{{.KontinuousIP}}:8080
+              value: https://{{.KontinuousIP}}:8085
             - name: INTERNAL_REGISTRY
               value: {{.RegistryIP}}:5000
           ports:
@@ -310,78 +313,23 @@ spec:
             - mountPath: /.certs
               name: ssl
               readOnly: true
-`
-
-var dashboardSvc = `
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    service: kontinuous-ui
-    type: dashboard
-  name: kontinuous-ui
-  namespace: {{.Namespace}}
-spec:
-  ports:
-  - name: dashboard
-    port: 5000
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: kontinuous-ui
-    type: dashboard
-  type: LoadBalancer
-
-`
-
-var dashboardDep = `
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  labels:
-    app: kontinuous-ui
-    type: dashboard
-  name: kontinuous-ui
-  namespace: {{.Namespace}}
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: kontinuous-ui
-      type: dashboard
-  template:
-    metadata:
-      labels:
-        app: kontinuous-ui
-        type: dashboard
-      name: kontinuous-ui
-      namespace: {{.Namespace}}
-    spec:
-      volumes:
-        - name: ssl
-          secret:
-            secretName: ssl-secret
-      containers:
-      - env:
-        - name: GITHUB_CLIENT_CALLBACK
-          value: https://{{.DashboardIP}}:5000
-        - name: GITHUB_CLIENT_ID
-          value: {{.GHClient}}
-        - name: KONTINUOUS_API_URL
-          value: https://{{.KontinuousIP}}:8080
-        image: quay.io/acaleph/kontinuous-ui:latest
-        imagePullPolicy: Always
-        name: kontinuous-ui
-        ports:
-        - containerPort: 5000
-          name: dashboard
-        volumeMounts:
-        - name: ssl
-          readOnly: true
-          mountPath: /secrets/ssl
-
+        - name: kontinuous-ui
+          env:
+            - name: GITHUB_CLIENT_CALLBACK
+              value: https://{{.KontinuousIP}}:5000
+            - name: GITHUB_CLIENT_ID
+              value: {{.GHClient}}
+            - name: KONTINUOUS_API_URL
+              value:  https://{{.KontinuousIP}}:8085
+          image: quay.io/acaleph/kontinuous-ui:latest
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 5000
+            name: dashboard
+          volumeMounts:
+            - name: ssl
+              readOnly: true
+              mountPath: /secrets/ssl
 `
 
 type Deploy struct {
@@ -391,7 +339,6 @@ type Deploy struct {
 	AuthCode     string
 	SecretData   string
 	KontinuousIP string
-	DashboardIP  string
 	RegistryIP   string
 	GHClient     string
 	GHSecret     string
@@ -424,7 +371,7 @@ func saveToFile(path string, data ...string) error {
 		defer file.Close()
 	}
 
-	file, err = os.OpenFile(path, os.O_RDWR, 0644)
+	file, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		fmt.Println(err.Error())
 		return err
@@ -463,7 +410,6 @@ func createKontinuousResouces(path string) error {
 }
 
 func deleteKontinuousResources() error {
-	//remove namespace file
 	fmt.Println("Removing Kontinuous resources ... ")
 	cmd := fmt.Sprintf("rm -f /tmp/deploy/APP_NAMESPACE.yml")
 	_, err := exec.Command("bash", "-c", cmd).Output()
@@ -606,11 +552,10 @@ func generateCertandKey() (string, string, error) {
 	now := time.Now()
 	then := now.Add(60 * 60 * 24 * 365 * 1000 * 1000 * 1000)
 	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName:   "kontinuous",
 			Organization: []string{"kontinuous"},
 		},
+		SerialNumber:          big.NewInt(1),
 		NotBefore:             now,
 		NotAfter:              then,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement,
@@ -660,7 +605,6 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	deployResource(registrySvc, "REGISTRY_SVC", &deploy)
 	deployResource(registryDep, "REGISTRY_DEPLOYMENT", &deploy)
 	deployResource(kontinuousSvc, "KONTINUOUS_SVC", &deploy)
-	deployResource(dashboardSvc, "DASHBOARD_SVC", &deploy)
 
 	err := getS3Details(&deploy)
 	if err != nil {
@@ -672,27 +616,20 @@ func DeployKontinuous(namespace, authcode, clientid, clientsecret string) error 
 	deployResource(secret, "APP_SECRET", &deploy)
 
 	deploy.Cert, deploy.Key, _ = generateCertandKey()
-	deploy.KontinuousIP, _ = fetchKontinuousIP("kontinuous", deploy.Namespace)
-	deploy.DashboardIP, _ = fetchKontinuousIP("kontinuous-ui", deploy.Namespace)
-	deploy.RegistryIP, _ = fetchClusterIP("registry", deploy.Namespace)
-
 	deployResource(sslSecrets, "SSL_SECRET", &deploy)
 
+	deploy.KontinuousIP, _ = fetchKontinuousIP("kontinuous", deploy.Namespace)
+	deploy.RegistryIP, _ = fetchClusterIP("registry", deploy.Namespace)
 	err = deployResource(kontinuousDep, "KONTINUOUS_DEPLOYMENT", &deploy)
 
 	if err != nil {
-		fmt.Println("Unable to deploy Kontinuous Api \n %s", err.Error())
-		return err
-	}
-	err = deployResource(dashboardDep, "DASHBOARD_DEPLOYMENT", &deploy)
-	if err != nil {
-		fmt.Printf("Unable to deploy Kontinuous UI  \n %s", err.Error())
+		fmt.Println("Unable to deploy Kontinuous \n %s", err.Error())
 		return err
 	}
 
 	fmt.Println("_____________________________________________________________\n")
 	fmt.Printf("Kontinuous API : https://%s:8080 \n", deploy.KontinuousIP)
-	fmt.Printf("Kontinuous Dashboard : https://%s:5000 \n", deploy.DashboardIP)
+	fmt.Printf("Kontinuous Dashboard : https://%s:5000 \n", deploy.KontinuousIP)
 	fmt.Println("_____________________________________________________________\n")
 
 	return nil
